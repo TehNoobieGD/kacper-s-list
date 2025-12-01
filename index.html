@@ -45,7 +45,7 @@
   .btn { padding:10px 14px; border-radius:10px; border:none; cursor:pointer; font-weight:700; background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#fff; }
   .btn.ghost { background:transparent; border:1px solid rgba(255,255,255,0.06); }
   .error-msg { color:#ff6b6b; font-size:0.9rem; display:none; }
-  /* discord user box bottom-left */
+  /* user box bottom-left */
   .user-info { position:absolute; bottom:10px; left:10px; display:flex; align-items:center; gap:10px; font-size:0.95rem; z-index:30; background: rgba(0,0,0,0.35); padding:8px 10px; border-radius:12px; backdrop-filter: blur(4px); border:1px solid rgba(255,255,255,0.04); }
   .user-info img { width:40px; height:40px; border-radius:50%; object-fit:cover; }
   .user-info .name { font-weight:700; }
@@ -96,43 +96,19 @@
   </div>
 </div>
 
-<!-- Discord Login Overlay (blocks entire view until logged) -->
-<div class="overlay active" id="discordOverlay">
-  <div class="popup" style="width:480px; max-width:96%;">
-    <h3 style="display:flex; justify-content:space-between; align-items:center;">Login with Discord <small style="font-weight:600; color:var(--muted); font-size:0.8rem;">(required)</small></h3>
-    <p style="margin:0 0 6px 0; color:var(--muted);">We use Discord identify — click the button to open Discord OAuth. If your host cannot finish OAuth automatically, after redirect you'll be asked to enter a display name & avatar URL to complete login.</p>
-
-    <div style="display:flex; gap:8px; margin-top:6px;">
-      <button class="btn" id="discordLoginBtn">Open Discord OAuth</button>
-      <button class="btn ghost" id="manualLoginBtn">Manual Login</button>
-    </div>
-
-    <hr style="border:none; height:1px; background:rgba(255,255,255,0.04); margin:12px 0;" />
-
-    <div id="manualBox" style="display:none; gap:8px; flex-direction:column;">
-      <input type="text" id="manualName" placeholder="Discord display name (for demo)">
-      <input type="url" id="manualAvatar" placeholder="Avatar URL (https://...)">
-      <div style="display:flex; justify-content:flex-end; gap:8px;">
-        <button class="btn ghost" id="manualCancel">Cancel</button>
-        <button class="btn" id="manualConfirm">Login (manual)</button>
-      </div>
-      <div class="error-msg" id="manualErr">Enter name & valid avatar URL</div>
-    </div>
-  </div>
-</div>
-
-<!-- Completion overlay when redirected back with ?code=... (simulation) -->
-<div class="overlay" id="completeOverlay">
+<!-- Account (manual username) Overlay -->
+<div class="overlay" id="acctOverlay">
   <div class="popup">
-    <h3>Complete Discord Login</h3>
-    <p style="margin:0 0 6px 0; color:var(--muted);">We detected an OAuth code in the URL. Because this demo doesn't exchange the code on a backend, please enter a display name and avatar URL to finish login.</p>
-    <input type="text" id="completeName" placeholder="Display name">
-    <input type="url" id="completeAvatar" placeholder="Avatar URL">
+    <h3>Create your username</h3>
+    <p style="margin:0;color:var(--muted)">Pick a username that others will see. It must be unique on this site.</p>
+    <input type="text" id="acctName" placeholder="Username (min 2 chars)">
+    <div class="error-msg" id="acctErr">Username required</div>
+    <div class="error-msg" id="acctTaken">That username is already taken</div>
+    <input type="url" id="acctAvatar" placeholder="Optional avatar URL (https://...)">
     <div class="actions">
-      <button class="btn ghost" id="completeCancel">Cancel</button>
-      <button class="btn" id="completeConfirm">Finish Login</button>
+      <button class="btn ghost" id="acctCancel">Cancel</button>
+      <button class="btn" id="acctConfirm">Create</button>
     </div>
-    <div class="error-msg" id="completeErr">Both fields required</div>
   </div>
 </div>
 
@@ -167,13 +143,10 @@ function extractYouTubeId(url){
   const regex = /(?:v=|\/embed\/|\.be\/|v\/|vi=)([A-Za-z0-9_-]{6,11})/;
   const m = url.match(regex);
   if(m && m[1]) return m[1];
-  // fallback: if URL contains 'youtu' but not matched, return null
   return null;
 }
 
 /* ---------- State ---------- */
-const discordOverlay = document.getElementById('discordOverlay');
-const completeOverlay = document.getElementById('completeOverlay');
 const submitOverlay = document.getElementById('submitOverlay');
 const openPopup = document.getElementById('openPopup');
 const confirmSubmit = document.getElementById('confirmSubmit');
@@ -186,110 +159,100 @@ const userName = document.getElementById('userName');
 const userTag = document.getElementById('userTag');
 const logoutBtn = document.getElementById('logoutBtn');
 
-let discordUser = getCookie('discordUser') || JSON.parse(localStorage.getItem('discordUser') || 'null');
+const acctOverlay = document.getElementById('acctOverlay');
+const acctNameEl = document.getElementById('acctName');
+const acctAvatarEl = document.getElementById('acctAvatar');
+const acctErr = document.getElementById('acctErr');
+const acctTaken = document.getElementById('acctTaken');
+const acctConfirm = document.getElementById('acctConfirm');
+const acctCancel = document.getElementById('acctCancel');
 
-/* ---------- Login flow ---------- */
-function showDiscordOverlay(){
-  discordOverlay.classList.add('active');
-}
-function hideDiscordOverlay(){
-  discordOverlay.classList.remove('active');
-}
-function showCompleteOverlay(){ completeOverlay.classList.add('active'); }
-function hideCompleteOverlay(){ completeOverlay.classList.remove('active'); }
+let siteUser = JSON.parse(localStorage.getItem('siteUser') || 'null');
 
-function finalizeLogin(user){
-  discordUser = user;
-  localStorage.setItem('discordUser', JSON.stringify(user));
-  setCookie('discordUser', user);
+/* ---------- Account flow ---------- */
+function showAcctOverlay(){ acctOverlay.classList.add('active'); }
+function hideAcctOverlay(){ acctOverlay.classList.remove('active'); }
+function showSubmitOverlay(){ submitOverlay.classList.add('active'); }
+function hideSubmitOverlay(){ submitOverlay.classList.remove('active'); }
+
+function saveSiteUser(user){
+  siteUser = user;
+  localStorage.setItem('siteUser', JSON.stringify(user));
   updateUserUI();
-  hideDiscordOverlay();
-  hideCompleteOverlay();
-  // Remove code param (clean URL)
-  if(window.history && window.history.replaceState){
-    const url = new URL(window.location);
-    url.searchParams.delete('code');
-    history.replaceState(null, '', url.pathname + url.search);
-  }
+  hideAcctOverlay();
 }
 
 function updateUserUI(){
-  if(!discordUser){ userInfoBox.style.display='none'; return; }
+  if(!siteUser){ userInfoBox.style.display='none'; return; }
   userInfoBox.style.display='flex';
-  userAvatar.src = discordUser.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png';
-  userName.textContent = discordUser.username || 'DiscordUser';
-  userTag.textContent = discordUser.tag ? ('#' + discordUser.tag) : '';
+  userAvatar.src = siteUser.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png';
+  userName.textContent = siteUser.username || 'User';
+  userTag.textContent = siteUser.tag ? ('#' + siteUser.tag) : '';
 }
 
-/* ---------- OAuth button ---------- */
-document.getElementById('discordLoginBtn').addEventListener('click', ()=>{
-  // use provided client id but redirect to current page so we can detect code
-  const client_id = '1445110495618269225';
-  const redirect_uri = encodeURIComponent(window.location.href);
-  const url = `https://discord.com/oauth2/authorize?client_id=${client_id}&response_type=code&redirect_uri=${redirect_uri}&scope=identify`;
-  // open OAuth
-  window.location.href = url;
-});
+/* get list of known usernames (from stored 'usernames' or previous submissions) */
+function getTakenUsernames(){
+  const set = new Set();
+  // from explicit stored usernames array
+  const arr = JSON.parse(localStorage.getItem('usernames') || '[]');
+  arr.forEach(u=>{ if(u) set.add(String(u).toLowerCase()); });
 
-/* Manual login fallback */
-document.getElementById('manualLoginBtn').addEventListener('click', ()=>{
-  document.getElementById('manualBox').style.display = 'flex';
-});
-document.getElementById('manualCancel').addEventListener('click', ()=>{
-  document.getElementById('manualBox').style.display = 'none';
-});
-document.getElementById('manualConfirm').addEventListener('click', ()=>{
-  const name = document.getElementById('manualName').value.trim();
-  const avatar = document.getElementById('manualAvatar').value.trim();
-  const err = document.getElementById('manualErr');
-  if(!name || !/^https?:\/\//.test(avatar)){ err.style.display='block'; return; }
-  err.style.display='none';
-  finalizeLogin({ username: name, avatar });
-});
+  // also scan past submissions for any username-like fields to avoid duplicates
+  const subs = JSON.parse(localStorage.getItem('submissions') || '[]');
+  subs.forEach(s=>{
+    if(s.submittedBy) set.add(String(s.submittedBy).toLowerCase());
+    if(s.discord) set.add(String(s.discord).toLowerCase());
+    if(s.username) set.add(String(s.username).toLowerCase());
+  });
+  return set;
+}
 
-/* If URL contains code= then show "complete login" popup to collect demo user info */
-(function checkForCode(){
-  const url = new URL(window.location);
-  const code = url.searchParams.get('code');
-  if(code && !discordUser){
-    // show completion overlay
-    showCompleteOverlay();
-  } else {
-    // otherwise, if no discordUser, show overlay to force login
-    if(!discordUser) showDiscordOverlay();
+/* create account */
+acctConfirm.addEventListener('click', ()=>{
+  const name = acctNameEl.value.trim();
+  const avatar = acctAvatarEl.value.trim();
+  acctErr.style.display='none';
+  acctTaken.style.display='none';
+
+  if(!name || name.length < 2){ acctErr.textContent='Username must be at least 2 characters'; acctErr.style.display='block'; return; }
+
+  // check taken (case-insensitive)
+  const taken = getTakenUsernames();
+  if(taken.has(name.toLowerCase())){
+    acctTaken.style.display='block';
+    return;
   }
-})();
 
-document.getElementById('completeCancel').addEventListener('click', ()=>{
-  // If user cancels, keep overlay visible so they must login
-  hideCompleteOverlay();
-  showDiscordOverlay();
-});
-document.getElementById('completeConfirm').addEventListener('click', ()=>{
-  const name = document.getElementById('completeName').value.trim();
-  const avatar = document.getElementById('completeAvatar').value.trim();
-  const err = document.getElementById('completeErr');
-  if(!name || !/^https?:\/\//.test(avatar)){ err.style.display='block'; return; }
-  err.style.display='none';
-  finalizeLogin({ username: name, avatar });
+  // register username list
+  const usernames = JSON.parse(localStorage.getItem('usernames') || '[]');
+  usernames.push(name);
+  localStorage.setItem('usernames', JSON.stringify(usernames));
+
+  saveSiteUser({ username: name, avatar: avatar || null, createdAt: Date.now() });
 });
 
-/* Logout */
+acctCancel.addEventListener('click', ()=>{
+  // If user cancels and no siteUser exists, keep overlay open to insist creating username.
+  hideAcctOverlay();
+  if(!siteUser) showAcctOverlay(); // force creation
+});
+
+/* logout */
 logoutBtn.addEventListener('click', ()=>{
-  deleteCookie('discordUser');
-  localStorage.removeItem('discordUser');
-  discordUser = null;
-  // force page reload and ask to login
-  location.reload();
+  localStorage.removeItem('siteUser');
+  siteUser = null;
+  updateUserUI();
+  // show account overlay so the user can create new username
+  showAcctOverlay();
 });
 
 /* ---------- Submissions / Leaderboard logic ---------- */
 openPopup.addEventListener('click', ()=>{
-  // require login
-  if(!discordUser){ showDiscordOverlay(); return; }
-  submitOverlay.classList.add('active');
+  // require username
+  if(!siteUser){ showAcctOverlay(); return; }
+  showSubmitOverlay();
 });
-cancelSubmit.addEventListener('click', ()=> submitOverlay.classList.remove('active'));
+cancelSubmit.addEventListener('click', ()=> hideSubmitOverlay() );
 
 confirmSubmit.addEventListener('click', ()=>{
   const name = document.getElementById('subName').value.trim();
@@ -308,26 +271,43 @@ confirmSubmit.addEventListener('click', ()=>{
 
   const submissions = JSON.parse(localStorage.getItem('submissions') || '[]');
   submissions.push({
-    name, creator, youtube: yt, discord: discordUser ? discordUser.username : 'Unknown',
+    name,
+    creator,
+    youtube: yt,
+    submittedBy: siteUser ? siteUser.username : 'Unknown',
     submittedAt: Date.now()
   });
   localStorage.setItem('submissions', JSON.stringify(submissions));
-  submitOverlay.classList.remove('active');
+  hideSubmitOverlay();
   // reset fields
   document.getElementById('subName').value='';
   document.getElementById('subCreator').value='';
   document.getElementById('subYT').value='';
   alert('Submission saved! The admins will review it on Submissions page.');
+  loadLeaderboard();
 });
 
 /* Render leaderboard cards */
 function loadLeaderboard(){
   leaderboardContainer.innerHTML = '';
   let leaderboard = JSON.parse(localStorage.getItem('leaderboard') || '[]');
-  // ensure rank numeric and sort
-  leaderboard = leaderboard.map(x=>({ ...x, rank: Number(x.rank) || 9999 })).sort((a,b)=>a.rank-b.rank);
 
-  // center container uses flex-direction:column + align-items:center; each card width is controlled in CSS
+  // if leaderboard is empty, fall back to showing recent submissions (if any)
+  if(leaderboard.length === 0){
+    const submissions = JSON.parse(localStorage.getItem('submissions') || '[]');
+    // show submissions as unranked (rank = 9999)
+    leaderboard = submissions.map((s, i)=>({
+      rank: s.rank || (i+1),
+      name: s.name || 'Unknown level',
+      creator: s.creator || '',
+      youtube: s.youtube || '',
+      submittedBy: s.submittedBy || s.discord || s.username || 'Unknown'
+    }));
+  } else {
+    // ensure rank numeric and sort
+    leaderboard = leaderboard.map(x=>({ ...x, rank: Number(x.rank) || 9999 })).sort((a,b)=>a.rank-b.rank);
+  }
+
   if(leaderboard.length === 0){
     const empty = document.createElement('div');
     empty.style.opacity = 0.7;
@@ -378,7 +358,9 @@ function loadLeaderboard(){
 
     const topRight = document.createElement('div');
     topRight.className = 'card-top-right';
-    topRight.textContent = item.discord ? ('sent by ' + item.discord) : 'sent by Unknown';
+    // support both old and new keys
+    const sender = item.submittedBy || item.discord || item.username || 'Unknown';
+    topRight.textContent = 'sent by ' + sender;
 
     card.appendChild(left);
     card.appendChild(mid);
@@ -390,7 +372,7 @@ function loadLeaderboard(){
 
 /* initial boot */
 updateUserUI();
-if(!discordUser) showDiscordOverlay();
+if(!siteUser) showAcctOverlay();
 loadLeaderboard();
 
 </script>
