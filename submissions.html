@@ -29,7 +29,6 @@
   .lb-actions{ position:absolute; top:8px; right:8px; display:flex; gap:6px; }
   .remove-btn{ background:#ff6b6b; color:#fff; border-radius:8px; padding:6px 8px; cursor:pointer; border:none; font-weight:700; }
 
-  /* Password overlay */
   .password-overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:60; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; }
   .password-overlay input{ padding:12px 14px; border-radius:10px; border:none; outline:none; width:260px; }
   .password-overlay button{ padding:10px 18px; border-radius:10px; border:none; cursor:pointer; background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#fff; font-weight:700; }
@@ -59,7 +58,7 @@
       <table class="sub-table" id="submissionTable">
         <thead>
           <tr>
-            <th>#</th><th>Level</th><th>Creator</th><th>Discord</th><th>YT</th><th>Actions</th>
+            <th>#</th><th>Level</th><th>Creator</th><th>Submitted by</th><th>YT</th><th>Actions</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -125,7 +124,7 @@ function loadSubmissions(){
       <td>${i+1}</td>
       <td style="max-width:180px;">${escapeHtml(sub.name)}</td>
       <td>${escapeHtml(sub.creator)}</td>
-      <td>${escapeHtml(sub.discord || 'Unknown')}</td>
+      <td>${escapeHtml(sub.submittedBy || 'Unknown')}</td>
       <td><a href="${escapeAttr(sub.youtube)}" target="_blank" style="color:var(--accent1);">Link</a></td>
       <td>
         <input type="number" min="1" class="rank-input" placeholder="Rank">
@@ -149,16 +148,10 @@ function loadSubmissions(){
       const rank = parseInt(rankInput.value);
       if(!rank || rank < 1){ alert('Enter a valid rank number (>=1)'); return; }
       let leaderboard = JSON.parse(localStorage.getItem('leaderboard')||'[]');
-      // bump existing entries that are >= rank
-      leaderboard.forEach(entry=>{
-        if(entry.rank >= rank) entry.rank = Number(entry.rank) + 1;
-      });
-      // push new entry
-      leaderboard.push({ name: sub.name, creator: sub.creator, discord: sub.discord, youtube: sub.youtube, rank });
-      // sort and store
+      leaderboard.forEach(entry=>{ if(entry.rank >= rank) entry.rank = Number(entry.rank) + 1; });
+      leaderboard.push({ name: sub.name, creator: sub.creator, submittedBy: sub.submittedBy, youtube: sub.youtube, rank });
       leaderboard.sort((a,b)=>a.rank - b.rank);
       localStorage.setItem('leaderboard', JSON.stringify(leaderboard));
-      // remove from submissions
       submissions.splice(i,1);
       localStorage.setItem('submissions', JSON.stringify(submissions));
       loadSubmissions();
@@ -202,7 +195,7 @@ function loadLeaderboardPreview(){
 
     const mid = document.createElement('div');
     mid.className = 'lb-mid';
-    mid.innerHTML = `<div style="display:flex;align-items:center;gap:8px;"><div class="lb-rank">${entry.rank}</div><div class="lb-title">${escapeHtml(entry.name)}</div></div><div class="lb-creator">by ${escapeHtml(entry.creator)} • sent by ${escapeHtml(entry.discord||'Unknown')}</div>`;
+    mid.innerHTML = `<div style="display:flex;align-items:center;gap:8px;"><div class="lb-rank">${entry.rank}</div><div class="lb-title">${escapeHtml(entry.name)}</div></div><div class="lb-creator">by ${escapeHtml(entry.creator)} • sent by ${escapeHtml(entry.submittedBy||'Unknown')}</div>`;
 
     const actions = document.createElement('div');
     actions.className = 'lb-actions';
@@ -212,9 +205,7 @@ function loadLeaderboardPreview(){
     removeBtn.title = 'Remove from leaderboard';
     removeBtn.addEventListener('click', ()=>{
       if(!confirm(`Remove "${entry.name}" from leaderboard?`)) return;
-      // remove that entry (match by name+creator+rank+youtube - best effort)
       leaderboard = leaderboard.filter((e,i2)=> !(e.name===entry.name && e.creator===entry.creator && Number(e.rank)===Number(entry.rank) && e.youtube===entry.youtube) );
-      // re-save
       localStorage.setItem('leaderboard', JSON.stringify(leaderboard));
       loadLeaderboardPreview();
       alert('Removed.');

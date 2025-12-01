@@ -21,7 +21,6 @@
   .title { font-size:1.5rem; font-weight:700; letter-spacing:0.2px; }
   .inner-rect { flex:1; background:rgba(255,255,255,0.03); border-radius:18px; backdrop-filter: blur(6px); padding:20px; overflow:auto; display:flex; flex-direction:column; align-items:center; gap:18px; }
   .leaderboard-frame { width:100%; max-width:1100px; height:100%; background:rgba(0,0,0,0.18); border-radius:12px; padding:18px; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; gap:12px; overflow:auto; }
-  /* Each card centered inside the frame, and full-width with padding */
   .card { width: calc(100% - 40px); max-width:1000px; background:var(--card-bg); border-radius:12px; display:flex; gap:14px; padding:12px; align-items:center; position:relative; box-shadow: 0 6px 18px rgba(0,0,0,0.5); }
   .card-left { min-width:240px; max-width:360px; width:34%; height:140px; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.35); border-radius:8px; overflow:hidden; }
   .card-left iframe { width:100%; height:100%; border:0; display:block; }
@@ -33,7 +32,6 @@
   .card-top-right { position:absolute; top:10px; right:12px; font-weight:600; font-size:0.9rem; color:var(--muted); background: rgba(255,255,255,0.03); padding:6px 8px; border-radius:8px; }
   .submit-btn { padding:14px 36px; font-size:1.05rem; font-weight:700; border:none; border-radius:16px; cursor:pointer; background: linear-gradient(135deg,var(--accent1),var(--accent2)); background-size:200% 200%; color:#fff; transition:transform .18s; align-self:center; margin-top:12px; }
   .submit-btn:hover{ transform:scale(1.03); }
-  /* popup & overlays */
   .overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:20; background:rgba(0,0,0,0.72); opacity:0; pointer-events:none; transition:opacity .25s ease; }
   .overlay.active { opacity:1; pointer-events:auto; }
   .popup { background: rgba(255,255,255,0.12); backdrop-filter: blur(16px); border-radius:20px; border:1px solid rgba(255,255,255,0.15); padding:20px; width:420px; max-width:94%; color:#fff; display:flex; flex-direction:column; gap:10px; box-shadow:0 12px 40px rgba(0,0,0,0.5); transform:translateY(20px); transition:transform .3s; }
@@ -45,12 +43,9 @@
   .btn { padding:10px 14px; border-radius:10px; border:none; cursor:pointer; font-weight:700; background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#fff; }
   .btn.ghost { background:transparent; border:1px solid rgba(255,255,255,0.06); }
   .error-msg { color:#ff6b6b; font-size:0.9rem; display:none; }
-  /* user box bottom-left */
   .user-info { position:absolute; bottom:10px; left:10px; display:flex; align-items:center; gap:10px; font-size:0.95rem; z-index:30; background: rgba(0,0,0,0.35); padding:8px 10px; border-radius:12px; backdrop-filter: blur(4px); border:1px solid rgba(255,255,255,0.04); }
-  .user-info img { width:40px; height:40px; border-radius:50%; object-fit:cover; }
   .user-info .name { font-weight:700; }
   .user-info button { padding:6px 10px; border:none; border-radius:8px; cursor:pointer; background:#F44336; color:#fff; font-weight:700; margin-left:8px; }
-  /* small screens */
   @media (max-width:800px){
     .card { flex-direction:column; align-items:flex-start; height:auto; }
     .card-left{ width:100%; height:160px; }
@@ -90,7 +85,6 @@
     <div class="error-msg" id="errYT">Valid YouTube link required</div>
 
     <div class="actions">
-      <button class="btn ghost" id="cancelSubmit">Cancel</button>
       <button class="btn" id="confirmSubmit">Submit</button>
     </div>
   </div>
@@ -104,17 +98,14 @@
     <input type="text" id="acctName" placeholder="Username (min 2 chars)">
     <div class="error-msg" id="acctErr">Username required</div>
     <div class="error-msg" id="acctTaken">That username is already taken</div>
-    <input type="url" id="acctAvatar" placeholder="Optional avatar URL (https://...)">
     <div class="actions">
-      <button class="btn ghost" id="acctCancel">Cancel</button>
       <button class="btn" id="acctConfirm">Create</button>
     </div>
   </div>
 </div>
 
-<!-- bottom-left user info -->
+<!-- bottom-left user info (no avatar) -->
 <div class="user-info" id="userInfo" style="display:none;">
-  <img src="" id="userAvatar" alt="avatar">
   <div style="display:flex; flex-direction:column;">
     <span class="name" id="userName">User</span>
     <small style="color:var(--muted)" id="userTag"></small>
@@ -139,7 +130,6 @@ function deleteCookie(name){
 }
 function extractYouTubeId(url){
   if(!url) return null;
-  // Several patterns
   const regex = /(?:v=|\/embed\/|\.be\/|v\/|vi=)([A-Za-z0-9_-]{6,11})/;
   const m = url.match(regex);
   if(m && m[1]) return m[1];
@@ -150,22 +140,18 @@ function extractYouTubeId(url){
 const submitOverlay = document.getElementById('submitOverlay');
 const openPopup = document.getElementById('openPopup');
 const confirmSubmit = document.getElementById('confirmSubmit');
-const cancelSubmit = document.getElementById('cancelSubmit');
 
 const leaderboardContainer = document.getElementById('leaderboardContainer');
 const userInfoBox = document.getElementById('userInfo');
-const userAvatar = document.getElementById('userAvatar');
 const userName = document.getElementById('userName');
 const userTag = document.getElementById('userTag');
 const logoutBtn = document.getElementById('logoutBtn');
 
 const acctOverlay = document.getElementById('acctOverlay');
 const acctNameEl = document.getElementById('acctName');
-const acctAvatarEl = document.getElementById('acctAvatar');
 const acctErr = document.getElementById('acctErr');
 const acctTaken = document.getElementById('acctTaken');
 const acctConfirm = document.getElementById('acctConfirm');
-const acctCancel = document.getElementById('acctCancel');
 
 let siteUser = JSON.parse(localStorage.getItem('siteUser') || 'null');
 
@@ -185,7 +171,6 @@ function saveSiteUser(user){
 function updateUserUI(){
   if(!siteUser){ userInfoBox.style.display='none'; return; }
   userInfoBox.style.display='flex';
-  userAvatar.src = siteUser.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png';
   userName.textContent = siteUser.username || 'User';
   userTag.textContent = siteUser.tag ? ('#' + siteUser.tag) : '';
 }
@@ -193,11 +178,9 @@ function updateUserUI(){
 /* get list of known usernames (from stored 'usernames' or previous submissions) */
 function getTakenUsernames(){
   const set = new Set();
-  // from explicit stored usernames array
   const arr = JSON.parse(localStorage.getItem('usernames') || '[]');
   arr.forEach(u=>{ if(u) set.add(String(u).toLowerCase()); });
 
-  // also scan past submissions for any username-like fields to avoid duplicates
   const subs = JSON.parse(localStorage.getItem('submissions') || '[]');
   subs.forEach(s=>{
     if(s.submittedBy) set.add(String(s.submittedBy).toLowerCase());
@@ -210,31 +193,22 @@ function getTakenUsernames(){
 /* create account */
 acctConfirm.addEventListener('click', ()=>{
   const name = acctNameEl.value.trim();
-  const avatar = acctAvatarEl.value.trim();
   acctErr.style.display='none';
   acctTaken.style.display='none';
 
   if(!name || name.length < 2){ acctErr.textContent='Username must be at least 2 characters'; acctErr.style.display='block'; return; }
 
-  // check taken (case-insensitive)
   const taken = getTakenUsernames();
   if(taken.has(name.toLowerCase())){
     acctTaken.style.display='block';
     return;
   }
 
-  // register username list
   const usernames = JSON.parse(localStorage.getItem('usernames') || '[]');
   usernames.push(name);
   localStorage.setItem('usernames', JSON.stringify(usernames));
 
-  saveSiteUser({ username: name, avatar: avatar || null, createdAt: Date.now() });
-});
-
-acctCancel.addEventListener('click', ()=>{
-  // If user cancels and no siteUser exists, keep overlay open to insist creating username.
-  hideAcctOverlay();
-  if(!siteUser) showAcctOverlay(); // force creation
+  saveSiteUser({ username: name, createdAt: Date.now() });
 });
 
 /* logout */
@@ -242,17 +216,14 @@ logoutBtn.addEventListener('click', ()=>{
   localStorage.removeItem('siteUser');
   siteUser = null;
   updateUserUI();
-  // show account overlay so the user can create new username
   showAcctOverlay();
 });
 
 /* ---------- Submissions / Leaderboard logic ---------- */
 openPopup.addEventListener('click', ()=>{
-  // require username
   if(!siteUser){ showAcctOverlay(); return; }
   showSubmitOverlay();
 });
-cancelSubmit.addEventListener('click', ()=> hideSubmitOverlay() );
 
 confirmSubmit.addEventListener('click', ()=>{
   const name = document.getElementById('subName').value.trim();
@@ -279,7 +250,6 @@ confirmSubmit.addEventListener('click', ()=>{
   });
   localStorage.setItem('submissions', JSON.stringify(submissions));
   hideSubmitOverlay();
-  // reset fields
   document.getElementById('subName').value='';
   document.getElementById('subCreator').value='';
   document.getElementById('subYT').value='';
@@ -292,10 +262,8 @@ function loadLeaderboard(){
   leaderboardContainer.innerHTML = '';
   let leaderboard = JSON.parse(localStorage.getItem('leaderboard') || '[]');
 
-  // if leaderboard is empty, fall back to showing recent submissions (if any)
   if(leaderboard.length === 0){
     const submissions = JSON.parse(localStorage.getItem('submissions') || '[]');
-    // show submissions as unranked (rank = 9999)
     leaderboard = submissions.map((s, i)=>({
       rank: s.rank || (i+1),
       name: s.name || 'Unknown level',
@@ -304,7 +272,6 @@ function loadLeaderboard(){
       submittedBy: s.submittedBy || s.discord || s.username || 'Unknown'
     }));
   } else {
-    // ensure rank numeric and sort
     leaderboard = leaderboard.map(x=>({ ...x, rank: Number(x.rank) || 9999 })).sort((a,b)=>a.rank-b.rank);
   }
 
@@ -358,7 +325,6 @@ function loadLeaderboard(){
 
     const topRight = document.createElement('div');
     topRight.className = 'card-top-right';
-    // support both old and new keys
     const sender = item.submittedBy || item.discord || item.username || 'Unknown';
     topRight.textContent = 'sent by ' + sender;
 
