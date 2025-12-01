@@ -39,6 +39,10 @@
   .user-name { font-weight:700; }
   .user-actions { display:flex; gap:6px; }
 
+  /* delete + rename overlay */
+  .overlay-delete { position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:80; background:rgba(0,0,0,0.6); }
+  .overlay-delete .popup { width:420px; }
+
   @media (max-width:1100px){
     .grid{ grid-template-columns: 1fr 1fr; }
   }
@@ -92,6 +96,19 @@
   </div>
 </div>
 
+<!-- Delete overlay that requests a termination reason -->
+<div class="overlay-delete" id="deleteOverlay">
+  <div class="popup">
+    <h3>Delete User</h3>
+    <p style="margin:0 0 6px 0; color:var(--muted)">Enter a reason for termination (user will see this on refresh):</p>
+    <input type="text" id="delReason" placeholder="Reason for termination">
+    <div class="actions" style="margin-top:8px;">
+      <button id="confirmDelete" class="btn">Delete</button>
+      <button id="cancelDelete" class="btn btn-ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const PASSWORD = "spring@53!rç";
 const overlay = document.getElementById('passwordOverlay');
@@ -107,6 +124,13 @@ const usersListEl = document.getElementById('usersList');
 const addUserBtn = document.getElementById('addUserBtn');
 const manualUserName = document.getElementById('manualUserName');
 const reloadUsersBtn = document.getElementById('reloadUsersBtn');
+
+const deleteOverlay = document.getElementById('deleteOverlay');
+const delReasonInput = document.getElementById('delReason');
+const confirmDeleteBtn = document.getElementById('confirmDelete');
+const cancelDeleteBtn = document.getElementById('cancelDelete');
+
+let userToDelete = null; // holds username being deleted
 
 async function sha256(message){
   const msgBuffer = new TextEncoder().encode(message);
@@ -160,6 +184,12 @@ function generateTag(){
 function loadSubmissions(){
   tbody.innerHTML='';
   const submissions = JSON.parse(localStorage.getItem('submissions')||'[]');
+  if(submissions.length === 0){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="6" style="opacity:.8; text-align:center; padding:20px;">No pending submissions.</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
   submissions.forEach((sub,i)=>{
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -191,9 +221,13 @@ function loadSubmissions(){
       const rank = parseInt(rankInput.value);
       if(!rank || rank < 1){ alert('Enter a valid rank number (>=1)'); return; }
       let leaderboard = JSON.parse(localStorage.getItem('leaderboard')||'[]');
-      leaderboard.forEach(entry=>{ if(entry.rank >= rank) entry.rank = Number(entry.rank) + 1; });
+      // bump existing entries that are >= rank
+      leaderboard.forEach(entry=>{
+        if(Number(entry.rank) >= rank) entry.rank = Number(entry.rank) + 1;
+      });
+      // push new entry with rank
       leaderboard.push({ name: sub.name, creator: sub.creator, submittedBy: sub.submittedBy, youtube: sub.youtube, rank });
-      leaderboard.sort((a,b)=>a.rank - b.rank);
+      leaderboard.sort((a,b)=>Number(a.rank) - Number(b.rank));
       localStorage.setItem('leaderboard', JSON.stringify(leaderboard));
       // remove from submissions
       const submissions = JSON.parse(localStorage.getItem('submissions')||'[]');
@@ -219,49 +253,114 @@ function loadUsersPanel(){
   }
 
   users.forEach(u=>{
-  const row = document.createElement('div');
-  row.className = 'user-row';
-  const left = document.createElement('div');
-  left.style.display='flex';
-  left.style.flexDirection='column';
-  left.innerHTML = `<div class="user-name">${escapeHtml(u.username)}${u.mto ? ' <span style="color:#ffdd55;font-weight:700">MTO</span>':''}</div><small style="color:var(--muted)">#${u.tag}</small>`;
+    const row = document.createElement('div');
+    row.className = 'user-row';
+    const left = document.createElement('div');
+    left.style.display='flex';
+    left.style.flexDirection='column';
+    left.innerHTML = `<div class="user-name">${escapeHtml(u.username)}${u.mto ? ' <span style="color:#ffdd55;font-weight:700">MTO</span>':''}</div><small style="color:var(--muted)">#${u.tag}</small>`;
 
-  const actions = document.createElement('div');
-  actions.className = 'user-actions';
+    const actions = document.createElement('div');
+    actions.className = 'user-actions';
+    const renameBtn = document.createElement('button');
+    renameBtn.textContent = 'Rename';
+    renameBtn.style.background = 'linear-gradient(135deg,var(--accent1),var(--accent2))';
+    renameBtn.style.color = '#000';
+    const removeBtn = document.createElement('button');
+    removeBtn.textContent = 'Remove';
+    removeBtn.style.background = '#ff6b6b';
+    removeBtn.style.color = '#fff';
+    const mtoBtn = document.createElement('button');
+    mtoBtn.textContent = u.mto ? 'Demote MTO' : 'Promote MTO';
+    mtoBtn.style.background = u.mto ? '#555' : 'gold';
+    mtoBtn.style.color = u.mto ? '#fff' : '#000';
 
-  const renameBtn = document.createElement('button');
-  renameBtn.textContent = 'Rename';
-  renameBtn.style.background = 'linear-gradient(135deg,var(--accent1),var(--accent2))';
-  renameBtn.style.color = '#000';
+    renameBtn.addEventListener('click', ()=> {
+      const newName = prompt('Enter new username for "' + u.username + '"', u.username);
+      if(!newName) return;
+      if(newName.trim().length < 2){ alert('Username must be at least 2 characters'); return; }
+      // uniqueness check
+      const existing = findUserByName(newName.trim());
+      if(existing && existing.username.toLowerCase() !== u.username.toLowerCase()){ alert('That username is already taken'); return; }
+      // perform rename in users
+      const usersArr = getUsers();
+      for(let uu of usersArr){ if(uu.username.toLowerCase() === u.username.toLowerCase()){ uu.username = newName.trim(); } }
+      saveUsers(usersArr);
+      // update submissions
+      const subs = JSON.parse(localStorage.getItem('submissions')||'[]');
+      subs.forEach(s => { if(s.submittedBy && s.submittedBy.toLowerCase() === u.username.toLowerCase()) s.submittedBy = newName.trim(); });
+      localStorage.setItem('submissions', JSON.stringify(subs));
+      // update leaderboard
+      let lb = JSON.parse(localStorage.getItem('leaderboard')||'[]');
+      lb.forEach(e => { if(e.submittedBy && e.submittedBy.toLowerCase() === u.username.toLowerCase()) e.submittedBy = newName.trim(); });
+      localStorage.setItem('leaderboard', JSON.stringify(lb));
+      loadUsersPanel();
+      loadSubmissions();
+      loadLeaderboardPreview();
+      alert('Renamed.');
+    });
 
-  const removeBtn = document.createElement('button');
-  removeBtn.textContent = 'Remove';
-  removeBtn.style.background = '#ff6b6b';
-  removeBtn.style.color = '#fff';
+    removeBtn.addEventListener('click', ()=> {
+      // open delete overlay and set userToDelete
+      userToDelete = u;
+      delReasonInput.value = '';
+      deleteOverlay.style.display = 'flex';
+    });
 
-  const mtoBtn = document.createElement('button');
-  mtoBtn.textContent = u.mto ? 'Demote MTO' : 'Promote MTO';
-  mtoBtn.style.background = u.mto ? '#555' : 'gold';
-  mtoBtn.style.color = u.mto ? '#fff' : '#000';
+    mtoBtn.addEventListener('click', ()=>{
+      const usersArr = getUsers();
+      for(let uu of usersArr){
+        if(uu.username.toLowerCase() === u.username.toLowerCase()){
+          uu.mto = !uu.mto;
+        }
+      }
+      saveUsers(usersArr);
+      loadUsersPanel();
+      alert(`User "${u.username}" MTO toggled.`);
+    });
 
-  // toggle MTO
-  mtoBtn.addEventListener('click', ()=>{
-    const usersArr = getUsers();
-    for(let uu of usersArr){ if(uu.username.toLowerCase()===u.username.toLowerCase()){ uu.mto = !uu.mto; } }
-    saveUsers(usersArr);
-    loadUsersPanel();
-    alert(`User "${u.username}" is now ${u.mto ? 'MTO':'not MTO'}.`);
+    actions.appendChild(renameBtn);
+    actions.appendChild(removeBtn);
+    actions.appendChild(mtoBtn);
+    row.appendChild(left);
+    row.appendChild(actions);
+    usersListEl.appendChild(row);
   });
-
-  actions.appendChild(renameBtn);
-  actions.appendChild(removeBtn);
-  actions.appendChild(mtoBtn);
-  row.appendChild(left);
-  row.appendChild(actions);
-  usersListEl.appendChild(row);
-});
-
 }
+
+/* Delete confirm/cancel */
+confirmDeleteBtn.addEventListener('click', ()=>{
+  if(!userToDelete) return;
+  const reason = delReasonInput.value.trim();
+  if(!reason){ alert('Enter a reason'); return; }
+  // remove user from users list
+  let usersArr = getUsers();
+  usersArr = usersArr.filter(uu => uu.username.toLowerCase() !== userToDelete.username.toLowerCase());
+  saveUsers(usersArr);
+  // remove their submissions
+  let subs = JSON.parse(localStorage.getItem('submissions')||'[]');
+  subs = subs.filter(s => !(s.submittedBy && s.submittedBy.toLowerCase() === userToDelete.username.toLowerCase()));
+  localStorage.setItem('submissions', JSON.stringify(subs));
+  // remove leaderboard entries they submitted
+  let lb = JSON.parse(localStorage.getItem('leaderboard')||'[]');
+  lb = lb.filter(e => !(e.submittedBy && e.submittedBy.toLowerCase() === userToDelete.username.toLowerCase()));
+  localStorage.setItem('leaderboard', JSON.stringify(lb));
+  // save termination reason so the user sees it when reloading the site (if they somehow still have that username)
+  const terminated = JSON.parse(localStorage.getItem('terminatedUsers')||'{}');
+  terminated[userToDelete.username] = reason;
+  localStorage.setItem('terminatedUsers', JSON.stringify(terminated));
+
+  deleteOverlay.style.display = 'none';
+  userToDelete = null;
+  loadUsersPanel();
+  loadSubmissions();
+  loadLeaderboardPreview();
+  alert('User removed and their submissions/leaderboard entries deleted. Termination reason saved.');
+});
+cancelDeleteBtn.addEventListener('click', ()=>{
+  deleteOverlay.style.display = 'none';
+  userToDelete = null;
+});
 
 /* Add user manually (admin) */
 addUserBtn.addEventListener('click', ()=> {
@@ -342,7 +441,7 @@ function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"']/g, function(
 function escapeAttr(s){ return s ? s.replace(/"/g,'&quot;') : ''; }
 
 /* Boot */
-document.addEventListener('DOMContentLoaded', ()=>{ /* nothing until password */ });
+document.addEventListener('DOMContentLoaded', ()=>{ /* waiting for admin password */ });
 
 /* Expose manual reload helpers so index.html shows updates immediately after admin changes */
 window.loadSubmissions = loadSubmissions;

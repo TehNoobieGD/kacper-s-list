@@ -317,7 +317,7 @@ confirmSubmit.addEventListener('click', ()=>{
 
   let ok = true;
 
-  // only validate if user is not MTO
+  // only validate if user is not MTO (MTO may skip validation) — BUT submissions are still **not** auto-approved.
   if(!siteUser?.mto){
     if(!name){ errName.style.display='block'; ok=false; } else errName.style.display='none';
     if(!creator){ errCreator.style.display='block'; ok=false; } else errCreator.style.display='none';
@@ -340,27 +340,16 @@ confirmSubmit.addEventListener('click', ()=>{
   document.getElementById('subCreator').value='';
   document.getElementById('subYT').value='';
   alert('Submission saved! The admins will review it on Submissions page.');
-  loadLeaderboard();
+  // NOTE: intentionally do NOT add to leaderboard here — only admin approval in submissions page will add entries.
 });
 
-
-/* Render leaderboard cards */
+/* Render leaderboard cards - only uses approved leaderboard array */
 function loadLeaderboard(){
   leaderboardContainer.innerHTML = '';
   let leaderboard = JSON.parse(localStorage.getItem('leaderboard') || '[]');
 
-  if(leaderboard.length === 0){
-    const submissions = JSON.parse(localStorage.getItem('submissions') || '[]');
-    leaderboard = submissions.map((s, i)=>({
-      rank: s.rank || (i+1),
-      name: s.name || 'Unknown level',
-      creator: s.creator || '',
-      youtube: s.youtube || '',
-      submittedBy: s.submittedBy || s.discord || s.username || 'Unknown'
-    }));
-  } else {
-    leaderboard = leaderboard.map(x=>({ ...x, rank: Number(x.rank) || 9999 })).sort((a,b)=>a.rank-b.rank);
-  }
+  // Do NOT fall back to submissions; show only approved leaderboard entries
+  leaderboard = leaderboard.map(x=>({ ...x, rank: Number(x.rank) || 9999 })).sort((a,b)=>a.rank-b.rank);
 
   if(leaderboard.length === 0){
     const empty = document.createElement('div');
@@ -368,7 +357,7 @@ function loadLeaderboard(){
     empty.style.color = 'var(--muted)';
     empty.style.marginTop = '20px';
     empty.style.textAlign = 'center';
-    empty.textContent = 'No leaderboard entries yet — be first to submit!';
+    empty.textContent = 'No leaderboard entries yet — be first to have an approved entry!';
     leaderboardContainer.appendChild(empty);
     return;
   }
