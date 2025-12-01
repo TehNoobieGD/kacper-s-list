@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kacper's List Submissions</title>
+<style>
+body { margin:0; font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif; background:#111; color:#fff; display:flex; justify-content:center; align-items:center; height:100vh; }
+.container { width:90%; max-width:1000px; padding:30px; background:rgba(255,255,255,0.05); backdrop-filter:blur(10px); border-radius:20px; }
+h1 { text-align:center; margin-bottom:20px; }
+table { width:100%; border-collapse:collapse; }
+th, td { padding:12px; border-bottom:1px solid rgba(255,255,255,0.2); text-align:left; }
+th { background: rgba(255,255,255,0.1); border-radius:6px; }
+button.accept, button.decline { padding:6px 12px; border:none; border-radius:8px; cursor:pointer; margin-left:4px; font-weight:600; }
+button.accept { background:#4CAF50; color:#fff; } button.decline { background:#F44336; color:#fff; }
+.password-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:flex; justify-content:center; align-items:center; flex-direction:column; gap:12px; z-index:100; }
+.password-overlay input { padding:12px 16px; font-size:1rem; border-radius:12px; border:none; outline:none; }
+.password-overlay button { padding:12px 24px; font-size:1rem; border-radius:12px; border:none; cursor:pointer; background:linear-gradient(135deg,#53baff,#6be3ff); color:#fff; font-weight:600; }
+.error-msg { color:#ff4d4d; font-size:0.9rem; display:none; }
+</style>
+</head>
+<body>
+
+<div class="password-overlay" id="passwordOverlay">
+  <h2>Enter Password</h2>
+  <input type="password" id="passInput" placeholder="Password">
+  <button id="passBtn">Enter</button>
+  <div class="error-msg" id="passError">Wrong password!</div>
+</div>
+
+<div class="container" id="mainContainer" style="display:none;">
+  <h1>All Submissions</h1>
+  <table id="submissionTable">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Level Name</th>
+        <th>Creator</th>
+        <th>YouTube Link</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script>
+const PASSWORD = "spring@53!rç";
+const overlay = document.getElementById('passwordOverlay');
+const passInput = document.getElementById('passInput');
+const passBtn = document.getElementById('passBtn');
+const passError = document.getElementById('passError');
+const mainContainer = document.getElementById('mainContainer');
+const tbody = document.querySelector('#submissionTable tbody');
+
+async function sha256(message) {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+passBtn.addEventListener('click', async () => {
+  const inputHash = await sha256(passInput.value);
+  const realHash = await sha256(PASSWORD);
+  if(inputHash === realHash){
+    overlay.style.display = 'none';
+    mainContainer.style.display = 'block';
+    loadSubmissions();
+  } else {
+    passError.style.display='block';
+  }
+});
+
+function loadSubmissions(){
+  tbody.innerHTML='';
+  let submissions = JSON.parse(localStorage.getItem('submissions') || '[]');
+  submissions.forEach((sub,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td>${sub.name}</td>
+      <td>${sub.creator}</td>
+      <td><a href="${sub.youtube}" target="_blank" style="color:#53baff;">Link</a></td>
+      <td>
+        <button class="accept">Accept</button>
+        <button class="decline">Decline</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+</script>
+
+</body>
+</html>
