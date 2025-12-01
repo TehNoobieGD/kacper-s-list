@@ -5,37 +5,73 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kacper's List Submissions</title>
 <style>
-body { margin:0; font-family:'Segoe UI',Roboto,sans-serif; background:#111; color:#fff; display:flex; justify-content:center; align-items:center; min-height:100vh; }
-.container { width:90%; max-width:1000px; padding:30px; background:rgba(255,255,255,0.05); backdrop-filter:blur(10px); border-radius:20px; }
-h1 { text-align:center; margin-bottom:20px; }
-.submissions-list { display:flex; flex-direction:column; gap:12px; max-height:600px; overflow-y:auto; }
-.card { display:flex; width:100%; background:rgba(255,255,255,0.08); border-radius:16px; overflow:hidden; position:relative; }
-.card iframe { width:180px; height:100px; border:none; flex-shrink:0; }
-.card-info { padding:10px 12px; display:flex; flex-direction:column; justify-content:center; flex:1; }
-.card-info .rank { font-weight:700; font-size:1rem; }
-.card-info .level-name { font-size:1.1rem; font-weight:600; }
-.card-info .creator { font-size:0.9rem; color:#ccc; }
-.card-sender { position:absolute; top:6px; right:10px; font-size:0.85rem; font-weight:600; color:#53baff; }
-.card button.delete { position:absolute; bottom:6px; right:10px; background:#F44336; border:none; border-radius:6px; color:#fff; padding:4px 8px; cursor:pointer; font-weight:600; }
-.password-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:flex; justify-content:center; align-items:center; flex-direction:column; gap:12px; z-index:100; }
-.password-overlay input { padding:12px 16px; font-size:1rem; border-radius:12px; border:none; outline:none; }
-.password-overlay button { padding:12px 24px; font-size:1rem; border-radius:12px; border:none; cursor:pointer; background:linear-gradient(135deg,#53baff,#6be3ff); color:#fff; font-weight:600; }
-.error-msg { color:#ff4d4d; font-size:0.9rem; display:none; }
-.rank-input { width:60px; padding:4px 8px; border-radius:6px; border:none; outline:none; margin-right:6px; }
+  :root{ --accent1:#53baff; --accent2:#6be3ff; --muted:rgba(255,255,255,0.65); }
+  body{ margin:0; font-family:'Segoe UI',Roboto,Helvetica,Arial; background:#111; color:#fff; display:flex; justify-content:center; align-items:flex-start; min-height:100vh; padding:28px; box-sizing:border-box;}
+  .container{ width:95%; max-width:1100px; background: rgba(255,255,255,0.03); padding:20px; border-radius:16px; backdrop-filter: blur(8px); border:1px solid rgba(255,255,255,0.04); box-shadow: 0 10px 30px rgba(0,0,0,0.6);}
+  h1{ text-align:center; margin:8px 0 18px 0; }
+  .grid{ display:grid; grid-template-columns: 1fr 380px; gap:18px; align-items:start; }
+  .panel{ background: rgba(0,0,0,0.25); padding:12px; border-radius:12px; }
+  .sub-table{ width:100%; border-collapse:collapse; }
+  .sub-table th, .sub-table td{ padding:10px; border-bottom:1px solid rgba(255,255,255,0.05); text-align:left; vertical-align:middle; }
+  .sub-table th{ font-weight:700; background: rgba(255,255,255,0.02); }
+  .rank-input{ width:70px; padding:6px 8px; border-radius:8px; border:none; outline:none; }
+  button{ padding:8px 10px; border-radius:8px; border:none; cursor:pointer; font-weight:700; }
+  .accept{ background:#4CAF50; color:#fff; }
+  .decline{ background:#F44336; color:#fff; }
+  .leaderboard-preview{ display:flex; flex-direction:column; gap:10px; max-height:420px; overflow:auto; }
+  .lb-card{ background: rgba(255,255,255,0.03); border-radius:10px; padding:8px; display:flex; gap:8px; align-items:center; position:relative; }
+  .lb-left{ min-width:110px; max-width:140px; height:80px; border-radius:6px; overflow:hidden; background:rgba(0,0,0,0.3); display:flex; align-items:center; justify-content:center; }
+  .lb-left iframe{ width:100%; height:100%; border:0; }
+  .lb-mid{ flex:1; display:flex; flex-direction:column; gap:6px; }
+  .lb-rank{ font-size:1.2rem; font-weight:800; color:var(--accent1); min-width:48px; }
+  .lb-title{ font-weight:700; }
+  .lb-creator{ color:var(--muted); font-size:0.95rem; }
+  .lb-actions{ position:absolute; top:8px; right:8px; display:flex; gap:6px; }
+  .remove-btn{ background:#ff6b6b; color:#fff; border-radius:8px; padding:6px 8px; cursor:pointer; border:none; font-weight:700; }
+
+  /* Password overlay */
+  .password-overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:60; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; }
+  .password-overlay input{ padding:12px 14px; border-radius:10px; border:none; outline:none; width:260px; }
+  .password-overlay button{ padding:10px 18px; border-radius:10px; border:none; cursor:pointer; background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#fff; font-weight:700; }
+  .error-msg{ color:#ff6b6b; display:none; }
+
+  @media (max-width:980px){
+    .grid{ grid-template-columns: 1fr; }
+    .panel{ width:100%; }
+  }
 </style>
 </head>
 <body>
-
 <div class="password-overlay" id="passwordOverlay">
-  <h2>Enter Password</h2>
+  <h2 style="margin:0">Enter Password</h2>
   <input type="password" id="passInput" placeholder="Password">
-  <button id="passBtn">Enter</button>
+  <div style="display:flex; gap:8px;">
+    <button id="passBtn">Enter</button>
+  </div>
   <div class="error-msg" id="passError">Wrong password!</div>
 </div>
 
 <div class="container" id="mainContainer" style="display:none;">
-  <h1>All Submissions</h1>
-  <div class="submissions-list" id="submissionList"></div>
+  <h1>All Submissions & Leaderboard Manager</h1>
+  <div class="grid">
+    <div class="panel" style="min-height:380px;">
+      <h3 style="margin:0 0 8px 0">Submissions</h3>
+      <table class="sub-table" id="submissionTable">
+        <thead>
+          <tr>
+            <th>#</th><th>Level</th><th>Creator</th><th>Discord</th><th>YT</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0 0 8px 0">Leaderboard Preview</h3>
+      <div class="leaderboard-preview" id="lbPreview"></div>
+      <div style="margin-top:12px; color:var(--muted); font-size:0.92rem;">Click the red X to remove an entry from the leaderboard.</div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -45,7 +81,9 @@ const passInput = document.getElementById('passInput');
 const passBtn = document.getElementById('passBtn');
 const passError = document.getElementById('passError');
 const mainContainer = document.getElementById('mainContainer');
-const submissionList = document.getElementById('submissionList');
+const tbody = document.querySelector('#submissionTable tbody');
+
+const lbPreview = document.getElementById('lbPreview');
 
 async function sha256(message){
   const msgBuffer = new TextEncoder().encode(message);
@@ -57,74 +95,157 @@ async function sha256(message){
 passBtn.addEventListener('click', async ()=>{
   const inputHash = await sha256(passInput.value);
   const realHash = await sha256(PASSWORD);
-  if(inputHash===realHash){
+  if(inputHash === realHash){
     overlay.style.display='none';
     mainContainer.style.display='block';
     loadSubmissions();
-  } else passError.style.display='block';
+    loadLeaderboardPreview();
+  } else {
+    passError.style.display='block';
+    setTimeout(()=> passError.style.display='none', 1800);
+  }
 });
 
-function loadSubmissions(){
-  submissionList.innerHTML='';
-  let submissions = JSON.parse(localStorage.getItem('submissions')||'[]');
-  let leaderboard = JSON.parse(localStorage.getItem('leaderboard')||'[]');
-  
-  submissions.forEach((sub,i)=>{
-    const card = document.createElement('div');
-    card.classList.add('card');
-    card.innerHTML = `
-      <iframe src="https://www.youtube.com/embed/${parseYoutubeID(sub.youtube)}" allowfullscreen></iframe>
-      <div class="card-info">
-        <div class="rank">Pending</div>
-        <div class="level-name">${sub.name}</div>
-        <div class="creator">by ${sub.creator}</div>
-      </div>
-      <div class="card-sender">${sub.discord}</div>
-      <button class="delete">X</button>
-    `;
-    submissionList.appendChild(card);
+/* Helpers */
+function extractYouTubeId(url){
+  if(!url) return null;
+  const regex = /(?:v=|\/embed\/|\.be\/|v\/|vi=)([A-Za-z0-9_-]{6,11})/;
+  const m = url.match(regex);
+  if(m && m[1]) return m[1];
+  return null;
+}
 
-    // Delete submission
-    card.querySelector('.delete').addEventListener('click', ()=>{
+/* Load submissions table */
+function loadSubmissions(){
+  tbody.innerHTML='';
+  const submissions = JSON.parse(localStorage.getItem('submissions')||'[]');
+  submissions.forEach((sub,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td style="max-width:180px;">${escapeHtml(sub.name)}</td>
+      <td>${escapeHtml(sub.creator)}</td>
+      <td>${escapeHtml(sub.discord || 'Unknown')}</td>
+      <td><a href="${escapeAttr(sub.youtube)}" target="_blank" style="color:var(--accent1);">Link</a></td>
+      <td>
+        <input type="number" min="1" class="rank-input" placeholder="Rank">
+        <button class="accept">Approve</button>
+        <button class="decline">Decline</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+
+    // Decline
+    tr.querySelector('.decline').addEventListener('click', ()=>{
       submissions.splice(i,1);
       localStorage.setItem('submissions', JSON.stringify(submissions));
       loadSubmissions();
+      alert('Submission removed.');
     });
-  });
 
-  // Show leaderboard too
-  leaderboard.forEach(item=>{
-    const card = document.createElement('div');
-    card.classList.add('card');
-    card.innerHTML = `
-      <iframe src="https://www.youtube.com/embed/${parseYoutubeID(item.youtube)}" allowfullscreen></iframe>
-      <div class="card-info">
-        <div class="rank">#${item.rank}</div>
-        <div class="level-name">${item.name}</div>
-        <div class="creator">by ${item.creator}</div>
-      </div>
-      <div class="card-sender">${item.discord}</div>
-      <button class="delete">X</button>
-    `;
-    submissionList.appendChild(card);
-
-    card.querySelector('.delete').addEventListener('click', ()=>{
-      let lb = JSON.parse(localStorage.getItem('leaderboard')||'[]');
-      lb = lb.filter(e=>!(e.name===item.name && e.discord===item.discord));
-      localStorage.setItem('leaderboard', JSON.stringify(lb));
+    // Approve
+    tr.querySelector('.accept').addEventListener('click', ()=>{
+      const rankInput = tr.querySelector('.rank-input');
+      const rank = parseInt(rankInput.value);
+      if(!rank || rank < 1){ alert('Enter a valid rank number (>=1)'); return; }
+      let leaderboard = JSON.parse(localStorage.getItem('leaderboard')||'[]');
+      // bump existing entries that are >= rank
+      leaderboard.forEach(entry=>{
+        if(entry.rank >= rank) entry.rank = Number(entry.rank) + 1;
+      });
+      // push new entry
+      leaderboard.push({ name: sub.name, creator: sub.creator, discord: sub.discord, youtube: sub.youtube, rank });
+      // sort and store
+      leaderboard.sort((a,b)=>a.rank - b.rank);
+      localStorage.setItem('leaderboard', JSON.stringify(leaderboard));
+      // remove from submissions
+      submissions.splice(i,1);
+      localStorage.setItem('submissions', JSON.stringify(submissions));
       loadSubmissions();
+      loadLeaderboardPreview();
+      alert('Approved and added to leaderboard.');
     });
   });
 }
 
-function parseYoutubeID(url){
-  try{
-    const u = new URL(url);
-    if(u.hostname.includes('youtu.be')) return u.pathname.slice(1);
-    if(u.searchParams.get('v')) return u.searchParams.get('v');
-    return '';
-  } catch{return '';}
+/* Load leaderboard preview and allow removal with X */
+function loadLeaderboardPreview(){
+  lbPreview.innerHTML = '';
+  let leaderboard = JSON.parse(localStorage.getItem('leaderboard')||'[]');
+  leaderboard = leaderboard.map(x=>({...x, rank: Number(x.rank) || 9999})).sort((a,b)=>a.rank-b.rank);
+
+  if(leaderboard.length === 0){
+    const e = document.createElement('div');
+    e.style.color = 'var(--muted)';
+    e.style.opacity = 0.85;
+    e.textContent = 'No leaderboard entries yet.';
+    lbPreview.appendChild(e);
+    return;
+  }
+
+  leaderboard.forEach((entry, idx)=>{
+    const card = document.createElement('div');
+    card.className = 'lb-card';
+
+    const left = document.createElement('div');
+    left.className = 'lb-left';
+    const ytId = extractYouTubeId(entry.youtube);
+    if(ytId){
+      const iframe = document.createElement('iframe');
+      iframe.src = `https://www.youtube.com/embed/${ytId}`;
+      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      iframe.allowFullscreen = true;
+      left.appendChild(iframe);
+    } else {
+      left.textContent = '—';
+    }
+
+    const mid = document.createElement('div');
+    mid.className = 'lb-mid';
+    mid.innerHTML = `<div style="display:flex;align-items:center;gap:8px;"><div class="lb-rank">${entry.rank}</div><div class="lb-title">${escapeHtml(entry.name)}</div></div><div class="lb-creator">by ${escapeHtml(entry.creator)} • sent by ${escapeHtml(entry.discord||'Unknown')}</div>`;
+
+    const actions = document.createElement('div');
+    actions.className = 'lb-actions';
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-btn';
+    removeBtn.textContent = 'X';
+    removeBtn.title = 'Remove from leaderboard';
+    removeBtn.addEventListener('click', ()=>{
+      if(!confirm(`Remove "${entry.name}" from leaderboard?`)) return;
+      // remove that entry (match by name+creator+rank+youtube - best effort)
+      leaderboard = leaderboard.filter((e,i2)=> !(e.name===entry.name && e.creator===entry.creator && Number(e.rank)===Number(entry.rank) && e.youtube===entry.youtube) );
+      // re-save
+      localStorage.setItem('leaderboard', JSON.stringify(leaderboard));
+      loadLeaderboardPreview();
+      alert('Removed.');
+    });
+
+    actions.appendChild(removeBtn);
+    card.appendChild(left);
+    card.appendChild(mid);
+    card.appendChild(actions);
+    lbPreview.appendChild(card);
+  });
 }
+
+/* Small HTML escaping helpers */
+function escapeHtml(s){
+  if(!s) return '';
+  return s.replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; });
+}
+function escapeAttr(s){
+  return s ? s.replace(/"/g,'&quot;') : '';
+}
+
+/* Boot */
+document.addEventListener('DOMContentLoaded', ()=>{
+  // initial loads are gated by password
+});
+
+/* Expose manual reload helpers so index.html shows updates immediately after admin changes */
+window.loadSubmissions = loadSubmissions;
+window.loadLeaderboardPreview = loadLeaderboardPreview;
+
 </script>
 </body>
 </html>
