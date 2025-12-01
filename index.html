@@ -1,40 +1,44 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kacper's List</title>
 <style>
-html, body { height: 100%; margin: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #000; }
-.bg { position: relative; min-height: 100%; display: grid; place-items: center; overflow: hidden; }
-.bg::after { content: ""; position: absolute; inset: 0; background-image: url('81161308.webp'); background-size: cover; background-position: center; filter: blur(10px) brightness(0.18); transform: scale(1.03); z-index: 1; }
-.bg::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle, rgba(0,0,0,0) 35%, rgba(0,0,0,0.95) 100%); z-index: 2; }
-.glass { position: relative; z-index: 5; margin: 60px; width: calc(100% - 120px); height: calc(100% - 120px); max-width: 1400px; max-height: 1000px; padding: 40px; background: rgba(200,200,200,0.10); backdrop-filter: blur(10px) saturate(120%); border-radius: 24px; border: 1px solid rgba(255,255,255,0.06); box-shadow: 0 10px 40px rgba(0,0,0,0.6); overflow: hidden; color: #fff; display:flex; flex-direction:column; }
-.submit-btn { padding: 14px 36px; font-size: 1.1rem; font-weight: 600; border: none; border-radius: 16px; cursor: pointer; background: linear-gradient(135deg,#53baff,#6be3ff,#53baff); background-size: 200% 200%; color: #fff; transition: transform 0.2s, filter 0.2s, box-shadow 0.2s; animation: pulseGradient 3s ease infinite; box-shadow: 0 5px 15px rgba(0,0,0,0.3); margin-top:auto; align-self:center; }
-@keyframes pulseGradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-.submit-btn:hover { transform: scale(1.05); filter: brightness(1.1); box-shadow: 0 8px 20px rgba(0,0,0,0.5); }
-.inner-rect { flex:1; background: rgba(255,255,255,0.08); border-radius: 18px; backdrop-filter: blur(6px); padding:20px; overflow-y:auto; }
-.popup-overlay, .discord-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 10; }
-.popup-overlay.active, .discord-overlay.active { opacity: 1; pointer-events: auto; }
-.popup, .discord-popup { background: rgba(255,255,255,0.12); backdrop-filter: blur(16px); border-radius: 24px; border: 1px solid rgba(255,255,255,0.15); padding: 30px; width: 380px; display: flex; flex-direction: column; gap: 12px; color: #fff; box-shadow: 0 12px 40px rgba(0,0,0,0.5); font-size: 1rem; transform: translateY(50px); opacity: 0; transition: transform 0.35s ease, opacity 0.35s ease; }
-.popup-overlay.active .popup, .discord-overlay.active .discord-popup { transform: translateY(0); opacity:1; }
-.popup input { padding: 12px 14px; border-radius: 12px; border: none; background: rgba(255,255,255,0.08); color: #fff; font-size: 1rem; outline: none; transition: background 0.2s; }
-.popup input:focus { background: rgba(255,255,255,0.15); box-shadow: 0 0 0 2px rgba(91,203,255,0.5); }
-.popup button, .discord-popup button { padding: 14px; border-radius: 16px; border: none; background: linear-gradient(135deg,#53baff,#6be3ff); color: #fff; font-weight: 600; cursor: pointer; transition: transform 0.15s, filter 0.2s, box-shadow 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
-.popup button:hover, .discord-popup button:hover { transform: scale(1.04); filter: brightness(1.1); box-shadow: 0 6px 16px rgba(0,0,0,0.4); }
-.error-msg { color: #ff4d4d; font-size: 0.85rem; margin-top: -6px; margin-bottom: 6px; display: none; }
-.user-info { position:absolute; bottom:10px; left:10px; display:flex; align-items:center; gap:10px; font-size:0.95rem; }
+html, body { height:100%; margin:0; font-family:'Segoe UI',Roboto,sans-serif; background:#000; display:flex; justify-content:center; align-items:center; }
+.bg { position:relative; width:100%; height:100%; display:grid; place-items:center; overflow:hidden; }
+.bg::after { content:""; position:absolute; inset:0; background-image:url('81161308.webp'); background-size:cover; background-position:center; filter:blur(10px) brightness(0.18); transform:scale(1.03); z-index:1; }
+.bg::before { content:""; position:absolute; inset:0; pointer-events:none; background:radial-gradient(circle, rgba(0,0,0,0) 35%, rgba(0,0,0,0.95) 100%); z-index:2; }
+.glass { position:relative; z-index:5; margin:60px; width:calc(100% - 120px); height:calc(100% - 120px); max-width:1400px; max-height:1000px; padding:40px; background:rgba(200,200,200,0.10); backdrop-filter:blur(10px) saturate(120%); border-radius:24px; border:1px solid rgba(255,255,255,0.06); box-shadow:0 10px 40px rgba(0,0,0,0.6); overflow:hidden; color:#fff; display:flex; flex-direction:column; }
+.submit-btn { padding:14px 36px; font-size:1.1rem; font-weight:600; border:none; border-radius:16px; cursor:pointer; background:linear-gradient(135deg,#53baff,#6be3ff,#53baff); background-size:200% 200%; color:#fff; transition:transform 0.2s, filter 0.2s, box-shadow 0.2s; animation:pulseGradient 3s ease infinite; box-shadow:0 5px 15px rgba(0,0,0,0.3); margin-top:15px; align-self:center; }
+@keyframes pulseGradient { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+.submit-btn:hover { transform:scale(1.05); filter:brightness(1.1); box-shadow:0 8px 20px rgba(0,0,0,0.5); }
+.leaderboard { flex:1; display:flex; flex-direction:column; align-items:center; gap:12px; overflow-y:auto; padding-right:6px; }
+.card { display:flex; width:90%; max-width:900px; background:rgba(255,255,255,0.08); border-radius:16px; overflow:hidden; position:relative; }
+.card iframe { width:180px; height:100px; border:none; flex-shrink:0; }
+.card-info { padding:10px 12px; display:flex; flex-direction:column; justify-content:center; flex:1; }
+.card-info .rank { font-weight:700; font-size:1rem; }
+.card-info .level-name { font-size:1.1rem; font-weight:600; }
+.card-info .creator { font-size:0.9rem; color:#ccc; }
+.card-sender { position:absolute; top:6px; right:10px; font-size:0.85rem; font-weight:600; color:#53baff; }
+.popup-overlay, .discord-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.3s ease; z-index:10; }
+.popup-overlay.active, .discord-overlay.active { opacity:1; pointer-events:auto; }
+.popup, .discord-popup { background:rgba(255,255,255,0.12); backdrop-filter:blur(16px); border-radius:24px; border:1px solid rgba(255,255,255,0.15); padding:30px; width:380px; display:flex; flex-direction:column; gap:12px; color:#fff; box-shadow:0 12px 40px rgba(0,0,0,0.5); font-size:1rem; transform:translateY(50px); opacity:0; transition:transform 0.35s ease, opacity 0.35s ease; }
+.popup-overlay.active .popup, .discord-overlay.active .discord-popup { transform:translateY(0); opacity:1; }
+.popup input { padding:12px 14px; border-radius:12px; border:none; background:rgba(255,255,255,0.08); color:#fff; font-size:1rem; outline:none; transition:background 0.2s; }
+.popup input:focus { background:rgba(255,255,255,0.15); box-shadow:0 0 0 2px rgba(91,203,255,0.5); }
+.popup button, .discord-popup button { padding:14px; border-radius:16px; border:none; background:linear-gradient(135deg,#53baff,#6be3ff); color:#fff; font-weight:600; cursor:pointer; transition:transform 0.15s, filter 0.2s, box-shadow 0.2s; box-shadow:0 4px 12px rgba(0,0,0,0.3); }
+.popup button:hover, .discord-popup button:hover { transform:scale(1.04); filter:brightness(1.1); box-shadow:0 6px 16px rgba(0,0,0,0.4); }
+.user-info { display:flex; align-items:center; gap:10px; font-size:0.95rem; position:absolute; bottom:10px; left:10px; }
 .user-info img { width:32px; height:32px; border-radius:50%; }
 .user-info button { padding:6px 10px; border:none; border-radius:8px; cursor:pointer; background:#F44336; color:#fff; font-weight:600; }
-@media (max-width:640px){ .glass{width:calc(100% - 40px);height:calc(100% - 40px);padding:20px;border-radius:16px} .inner-rect{width:calc(100% - 80px);} .popup, .discord-popup{width:calc(100% - 40px);padding:20px} }
 </style>
 </head>
 <body>
+
 <div class="bg">
   <div class="glass">
-    <div class="inner-rect" id="leaderboardContainer">
-      <!-- Leaderboard entries appear here -->
-    </div>
+    <div class="leaderboard" id="leaderboardContainer"></div>
     <button class="submit-btn" id="openPopup">Submit Hardest</button>
   </div>
 </div>
@@ -78,57 +82,41 @@ const userAvatar = document.getElementById('userAvatar');
 const logoutBtn = document.getElementById('logoutBtn');
 const leaderboardContainer = document.getElementById('leaderboardContainer');
 
-let discordUser = JSON.parse(localStorage.getItem('discordUser') || 'null');
+let discordUser = null;
 
-// Show Discord login if not logged
+// Enforce login every visit
 function checkLogin(){
+  discordUser = JSON.parse(localStorage.getItem('discordUser')||'null');
   if(!discordUser){
     discordOverlay.classList.add('active');
   } else {
+    discordOverlay.classList.remove('active');
     userInfo.style.display='flex';
     userName.textContent = discordUser.username;
     userAvatar.src = discordUser.avatar;
     loadLeaderboard();
   }
 }
-
 checkLogin();
 
-// Discord login simulation (replace with actual OAuth flow if deployed)
-discordLogin.addEventListener('click', () => {
-  // Open Discord OAuth
-  const client_id = '1445110495618269225';
-  const redirect_uri = encodeURIComponent(window.location.href);
-  const url = `https://discord.com/oauth2/authorize?client_id=${client_id}&response_type=code&redirect_uri=${redirect_uri}&scope=identify`;
-  window.location.href = url;
-});
-
-// After redirect, you would parse code and fetch user info from Discord API
-// For demo/testing, we'll simulate a login:
-if(window.location.search.includes('code=')){
-  // Simulate fetching user info
+// Simulated OAuth
+discordLogin.addEventListener('click', ()=>{
   discordUser = {username:'TestUser', avatar:'https://cdn.discordapp.com/embed/avatars/0.png'};
   localStorage.setItem('discordUser', JSON.stringify(discordUser));
-  discordOverlay.classList.remove('active');
-  userInfo.style.display='flex';
-  userName.textContent = discordUser.username;
-  userAvatar.src = discordUser.avatar;
-  history.replaceState(null,null,window.location.pathname);
-  loadLeaderboard();
-}
+  checkLogin();
+});
 
 logoutBtn.addEventListener('click', ()=>{
   localStorage.removeItem('discordUser');
-  discordUser = null;
-  userInfo.style.display='none';
-  discordOverlay.classList.add('active');
+  discordUser=null;
+  checkLogin();
 });
 
 // Open popup
 openPopup.addEventListener('click', ()=>popupOverlay.classList.add('active'));
 popupOverlay.addEventListener('click', e=>{ if(!popup.contains(e.target)) popupOverlay.classList.remove('active'); });
 
-// Submission logic
+// Submission
 document.getElementById('popupSubmit').addEventListener('click', ()=>{
   const inputs = popup.querySelectorAll('input');
   const errors = popup.querySelectorAll('.error-msg');
@@ -153,17 +141,35 @@ document.getElementById('popupSubmit').addEventListener('click', ()=>{
   inputs.forEach(i=>i.value=''); errors.forEach(e=>{ e.style.display='none'; e.textContent='This field is required'; });
 });
 
-// Leaderboard
+// Load leaderboard
 function loadLeaderboard(){
   leaderboardContainer.innerHTML='';
   let leaderboard = JSON.parse(localStorage.getItem('leaderboard')||'[]');
   leaderboard.sort((a,b)=>a.rank-b.rank);
-  leaderboard.forEach((item,i)=>{
-    const div = document.createElement('div');
-    div.style.margin='6px 0';
-    div.innerHTML=`${item.rank}. ${item.name} | ${item.creator} | ${item.discord} <a href="${item.youtube}" target="_blank" style="color:#53baff;">Video</a>`;
-    leaderboardContainer.appendChild(div);
+  leaderboard.forEach(item=>{
+    const card = document.createElement('div');
+    card.classList.add('card');
+    card.innerHTML=`
+      <iframe src="https://www.youtube.com/embed/${parseYoutubeID(item.youtube)}" allowfullscreen></iframe>
+      <div class="card-info">
+        <div class="rank">#${item.rank}</div>
+        <div class="level-name">${item.name}</div>
+        <div class="creator">by ${item.creator}</div>
+      </div>
+      <div class="card-sender">${item.discord}</div>
+    `;
+    leaderboardContainer.appendChild(card);
   });
+}
+
+// Helper: get video ID from URL
+function parseYoutubeID(url){
+  try{
+    const u = new URL(url);
+    if(u.hostname.includes('youtu.be')) return u.pathname.slice(1);
+    if(u.searchParams.get('v')) return u.searchParams.get('v');
+    return '';
+  } catch{return '';}
 }
 </script>
 </body>
