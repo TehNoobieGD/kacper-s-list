@@ -32,6 +32,8 @@
   .card-top-right { position:absolute; top:10px; right:12px; font-weight:600; font-size:0.9rem; color:var(--muted); background: rgba(255,255,255,0.03); padding:6px 8px; border-radius:8px; }
   .submit-btn { padding:14px 36px; font-size:1.05rem; font-weight:700; border:none; border-radius:16px; cursor:pointer; background: linear-gradient(135deg,var(--accent1),var(--accent2)); background-size:200% 200%; color:#fff; transition:transform .18s; align-self:center; margin-top:12px; }
   .submit-btn:hover{ transform:scale(1.03); }
+
+  /* overlays & popup styles */
   .overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:20; background:rgba(0,0,0,0.72); opacity:0; pointer-events:none; transition:opacity .25s ease; }
   .overlay.active { opacity:1; pointer-events:auto; }
   .popup { background: rgba(255,255,255,0.12); backdrop-filter: blur(16px); border-radius:20px; border:1px solid rgba(255,255,255,0.15); padding:20px; width:420px; max-width:94%; color:#fff; display:flex; flex-direction:column; gap:10px; box-shadow:0 12px 40px rgba(0,0,0,0.5); transform:translateY(20px); transition:transform .3s; }
@@ -43,9 +45,18 @@
   .btn { padding:10px 14px; border-radius:10px; border:none; cursor:pointer; font-weight:700; background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#fff; }
   .btn.ghost { background:transparent; border:1px solid rgba(255,255,255,0.06); }
   .error-msg { color:#ff6b6b; font-size:0.9rem; display:none; }
+
+  /* account overlay tabs */
+  .tabs { display:flex; gap:6px; margin-bottom:8px; }
+  .tab { padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:700; background:transparent; border:1px solid rgba(255,255,255,0.04); }
+  .tab.active { background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#000; }
+
   .user-info { position:absolute; bottom:10px; left:10px; display:flex; align-items:center; gap:10px; font-size:0.95rem; z-index:30; background: rgba(0,0,0,0.35); padding:8px 10px; border-radius:12px; backdrop-filter: blur(4px); border:1px solid rgba(255,255,255,0.04); }
   .user-info .name { font-weight:700; }
   .user-info button { padding:6px 10px; border:none; border-radius:8px; cursor:pointer; background:#F44336; color:#fff; font-weight:700; margin-left:8px; }
+  .user-info .small-actions { display:flex; gap:6px; align-items:center; margin-left:8px; }
+  .user-info .small-actions button { padding:6px 8px; font-size:0.85rem; background:transparent; border:1px solid rgba(255,255,255,0.06); color:inherit; border-radius:8px; }
+
   @media (max-width:800px){
     .card { flex-direction:column; align-items:flex-start; height:auto; }
     .card-left{ width:100%; height:160px; }
@@ -90,17 +101,37 @@
   </div>
 </div>
 
-<!-- Account (manual username) Overlay -->
+<!-- Account Overlay: SIGNUP / LOGIN -->
 <div class="overlay" id="acctOverlay">
-  <div class="popup">
-    <h3>Create your username</h3>
-    <p style="margin:0;color:var(--muted)">Pick a username that others will see. It must be unique on this site.</p>
-    <input type="text" id="acctName" placeholder="Username (min 2 chars)">
-    <div class="error-msg" id="acctErr">Username required</div>
-    <div class="error-msg" id="acctTaken">That username is already taken</div>
-    <div class="actions">
-      <button class="btn" id="acctConfirm">Create</button>
+  <div class="popup" style="width:480px;">
+    <div class="tabs">
+      <div class="tab active" id="tabSignup">Sign up</div>
+      <div class="tab" id="tabLogin">Login</div>
     </div>
+
+    <!-- Signup -->
+    <div id="signupPanel">
+      <h3>Create your username</h3>
+      <p style="margin:0;color:var(--muted)">Pick a username that others will see. It must be unique on this site.</p>
+      <input type="text" id="acctName" placeholder="Username (min 2 chars)">
+      <div class="error-msg" id="acctErr">Username required</div>
+      <div class="error-msg" id="acctTaken">That username is already taken</div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button class="btn" id="acctConfirm">Create</button>
+      </div>
+    </div>
+
+    <!-- Login -->
+    <div id="loginPanel" style="display:none;">
+      <h3>Login</h3>
+      <p style="margin:0;color:var(--muted)">Type your username to log in.</p>
+      <input type="text" id="loginName" placeholder="Username">
+      <div class="error-msg" id="loginErr">Username not found</div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button class="btn" id="loginBtn">Login</button>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -110,30 +141,51 @@
     <span class="name" id="userName">User</span>
     <small style="color:var(--muted)" id="userTag"></small>
   </div>
-  <button id="logoutBtn">Logout</button>
+  <div class="small-actions">
+    <button id="toggleUserInfo" title="Toggle user box">Hide</button>
+    <button id="logoutBtn">Logout</button>
+  </div>
 </div>
 
 <script>
 /* ---------- Utilities ---------- */
-function setCookie(name, value, days=365){
-  const d = new Date();
-  d.setTime(d.getTime() + (days*24*60*60*1000));
-  document.cookie = `${name}=${encodeURIComponent(JSON.stringify(value))};expires=${d.toUTCString()};path=/`;
-}
-function getCookie(name){
-  const cookie = document.cookie.split('; ').find(row=>row.startsWith(name+'='));
-  if(!cookie) return null;
-  try{ return JSON.parse(decodeURIComponent(cookie.split('=')[1])); }catch(e){ return null; }
-}
-function deleteCookie(name){
-  document.cookie = name+'=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-}
 function extractYouTubeId(url){
   if(!url) return null;
   const regex = /(?:v=|\/embed\/|\.be\/|v\/|vi=)([A-Za-z0-9_-]{6,11})/;
   const m = url.match(regex);
   if(m && m[1]) return m[1];
   return null;
+}
+function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
+
+/* ---------- Users & siteUser ---------- */
+function getUsers(){ return JSON.parse(localStorage.getItem('users') || '[]'); }
+function saveUsers(u){ localStorage.setItem('users', JSON.stringify(u)); }
+function findUserByName(name){
+  if(!name) return null;
+  const users = getUsers();
+  return users.find(u => u.username.toLowerCase() === name.toLowerCase()) || null;
+}
+function generateTag(){
+  // find existing tags (4-digit), then pick a new one
+  const users = getUsers();
+  const taken = new Set(users.map(u => u.tag));
+  for(let i=1;i<10000;i++){
+    const t = String(i).padStart(4,'0');
+    if(!taken.has(t)) return t;
+  }
+  return String(Date.now()).slice(-4);
+}
+
+function setSiteUser(user){
+  siteUser = user;
+  localStorage.setItem('siteUser', JSON.stringify(user));
+  updateUserUI();
+}
+function clearSiteUser(){
+  siteUser = null;
+  localStorage.removeItem('siteUser');
+  updateUserUI();
 }
 
 /* ---------- State ---------- */
@@ -146,28 +198,32 @@ const userInfoBox = document.getElementById('userInfo');
 const userName = document.getElementById('userName');
 const userTag = document.getElementById('userTag');
 const logoutBtn = document.getElementById('logoutBtn');
+const toggleUserInfo = document.getElementById('toggleUserInfo');
 
 const acctOverlay = document.getElementById('acctOverlay');
+const signupPanel = document.getElementById('signupPanel');
+const loginPanel = document.getElementById('loginPanel');
+const tabSignup = document.getElementById('tabSignup');
+const tabLogin = document.getElementById('tabLogin');
+
 const acctNameEl = document.getElementById('acctName');
 const acctErr = document.getElementById('acctErr');
 const acctTaken = document.getElementById('acctTaken');
 const acctConfirm = document.getElementById('acctConfirm');
 
+const loginNameEl = document.getElementById('loginName');
+const loginErr = document.getElementById('loginErr');
+const loginBtn = document.getElementById('loginBtn');
+
 let siteUser = JSON.parse(localStorage.getItem('siteUser') || 'null');
 
-/* ---------- Account flow ---------- */
-function showAcctOverlay(){ acctOverlay.classList.add('active'); }
-function hideAcctOverlay(){ acctOverlay.classList.remove('active'); }
-function showSubmitOverlay(){ submitOverlay.classList.add('active'); }
-function hideSubmitOverlay(){ submitOverlay.classList.remove('active'); }
+/* ---------- Overlay helpers ---------- */
+function showAcctOverlay(){ acctOverlay.classList.add('active'); acctOverlay.style.display='flex'; }
+function hideAcctOverlay(){ acctOverlay.classList.remove('active'); acctOverlay.style.display='none'; }
+function showSubmitOverlay(){ submitOverlay.classList.add('active'); submitOverlay.style.display='flex'; }
+function hideSubmitOverlay(){ submitOverlay.classList.remove('active'); submitOverlay.style.display='none'; }
 
-function saveSiteUser(user){
-  siteUser = user;
-  localStorage.setItem('siteUser', JSON.stringify(user));
-  updateUserUI();
-  hideAcctOverlay();
-}
-
+/* ---------- UI updates ---------- */
 function updateUserUI(){
   if(!siteUser){ userInfoBox.style.display='none'; return; }
   userInfoBox.style.display='flex';
@@ -175,48 +231,53 @@ function updateUserUI(){
   userTag.textContent = siteUser.tag ? ('#' + siteUser.tag) : '';
 }
 
-/* get list of known usernames (from stored 'usernames' or previous submissions) */
-function getTakenUsernames(){
-  const set = new Set();
-  const arr = JSON.parse(localStorage.getItem('usernames') || '[]');
-  arr.forEach(u=>{ if(u) set.add(String(u).toLowerCase()); });
+/* toggle display of the user info box (gives "both" behaviors) */
+let userInfoHidden = false;
+toggleUserInfo.addEventListener('click', ()=>{
+  userInfoHidden = !userInfoHidden;
+  userInfoBox.style.display = userInfoHidden ? 'none' : (siteUser ? 'flex' : 'none');
+  toggleUserInfo.textContent = userInfoHidden ? 'Show' : 'Hide';
+});
 
-  const subs = JSON.parse(localStorage.getItem('submissions') || '[]');
-  subs.forEach(s=>{
-    if(s.submittedBy) set.add(String(s.submittedBy).toLowerCase());
-    if(s.discord) set.add(String(s.discord).toLowerCase());
-    if(s.username) set.add(String(s.username).toLowerCase());
-  });
-  return set;
-}
+/* ---------- Account tab switching ---------- */
+tabSignup.addEventListener('click', ()=>{
+  tabSignup.classList.add('active'); tabLogin.classList.remove('active');
+  signupPanel.style.display='block'; loginPanel.style.display='none';
+});
+tabLogin.addEventListener('click', ()=>{
+  tabLogin.classList.add('active'); tabSignup.classList.remove('active');
+  signupPanel.style.display='none'; loginPanel.style.display='block';
+});
 
-/* create account */
+/* ---------- Signup & Login ---------- */
 acctConfirm.addEventListener('click', ()=>{
   const name = acctNameEl.value.trim();
   acctErr.style.display='none';
   acctTaken.style.display='none';
-
   if(!name || name.length < 2){ acctErr.textContent='Username must be at least 2 characters'; acctErr.style.display='block'; return; }
+  if(findUserByName(name)){ acctTaken.style.display='block'; return; }
+  const users = getUsers();
+  const tag = generateTag();
+  const newUser = { username: name, tag, createdAt: Date.now() };
+  users.push(newUser);
+  saveUsers(users);
+  setSiteUser(newUser);
+  hideAcctOverlay();
+});
 
-  const taken = getTakenUsernames();
-  if(taken.has(name.toLowerCase())){
-    acctTaken.style.display='block';
-    return;
-  }
-
-  const usernames = JSON.parse(localStorage.getItem('usernames') || '[]');
-  usernames.push(name);
-  localStorage.setItem('usernames', JSON.stringify(usernames));
-
-  saveSiteUser({ username: name, createdAt: Date.now() });
+loginBtn.addEventListener('click', ()=>{
+  const name = loginNameEl.value.trim();
+  loginErr.style.display='none';
+  if(!name){ loginErr.textContent='Username not found'; loginErr.style.display='block'; return; }
+  const user = findUserByName(name);
+  if(!user){ loginErr.textContent='Username not found'; loginErr.style.display='block'; return; }
+  setSiteUser(user);
+  hideAcctOverlay();
 });
 
 /* logout */
 logoutBtn.addEventListener('click', ()=>{
-  localStorage.removeItem('siteUser');
-  siteUser = null;
-  updateUserUI();
-  showAcctOverlay();
+  if(confirm('Logout?')){ clearSiteUser(); showAcctOverlay(); }
 });
 
 /* ---------- Submissions / Leaderboard logic ---------- */
@@ -340,6 +401,9 @@ function loadLeaderboard(){
 updateUserUI();
 if(!siteUser) showAcctOverlay();
 loadLeaderboard();
+
+/* make load functions globally available for admin page to refresh UI */
+window.loadLeaderboard = loadLeaderboard;
 
 </script>
 </body>
