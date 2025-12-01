@@ -229,7 +229,28 @@ function updateUserUI(){
   userInfoBox.style.display='flex';
   userName.textContent = siteUser.username || 'User';
   userTag.textContent = siteUser.tag ? ('#' + siteUser.tag) : '';
+  
+  // show MTO badge if user is MTO
+  if(siteUser.mto){
+    if(!document.getElementById('mtoBadge')){
+      const badge = document.createElement('span');
+      badge.id = 'mtoBadge';
+      badge.textContent = 'MTO';
+      badge.style.marginLeft='6px';
+      badge.style.padding='2px 6px';
+      badge.style.fontSize='0.75rem';
+      badge.style.fontWeight='700';
+      badge.style.color='#000';
+      badge.style.background='linear-gradient(135deg,#ffdd55,#ffaa33)';
+      badge.style.borderRadius='6px';
+      userName.parentNode.appendChild(badge);
+    }
+  } else {
+    const badge = document.getElementById('mtoBadge');
+    if(badge) badge.remove();
+  }
 }
+
 
 /* toggle display of the user info box (gives "both" behaviors) */
 let userInfoHidden = false;
@@ -295,9 +316,13 @@ confirmSubmit.addEventListener('click', ()=>{
   const errYT = document.getElementById('errYT');
 
   let ok = true;
-  if(!name){ errName.style.display='block'; ok=false; } else errName.style.display='none';
-  if(!creator){ errCreator.style.display='block'; ok=false; } else errCreator.style.display='none';
-  if(!/^https?:\/\//.test(yt) || !extractYouTubeId(yt)){ errYT.style.display='block'; errYT.textContent='Valid YouTube link required'; ok=false; } else errYT.style.display='none';
+
+  // only validate if user is not MTO
+  if(!siteUser?.mto){
+    if(!name){ errName.style.display='block'; ok=false; } else errName.style.display='none';
+    if(!creator){ errCreator.style.display='block'; ok=false; } else errCreator.style.display='none';
+    if(!/^https?:\/\//.test(yt) || !extractYouTubeId(yt)){ errYT.style.display='block'; errYT.textContent='Valid YouTube link required'; ok=false; } else errYT.style.display='none';
+  }
 
   if(!ok) return;
 
@@ -317,6 +342,7 @@ confirmSubmit.addEventListener('click', ()=>{
   alert('Submission saved! The admins will review it on Submissions page.');
   loadLeaderboard();
 });
+
 
 /* Render leaderboard cards */
 function loadLeaderboard(){
