@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kacper's List</title>
+<style>
+  :root{
+    --accent1:#53baff;
+    --accent2:#6be3ff;
+    --glass-bg: rgba(255,255,255,0.10);
+    --card-bg: rgba(255,255,255,0.04);
+    --muted: rgba(255,255,255,0.6);
+  }
+  html, body { height:100%; margin:0; font-family:'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background:#000; color:#fff; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+  .bg { position:relative; min-height:100%; display:grid; place-items:center; overflow:hidden; }
+  .glass { position:relative; z-index:5; margin:40px; width:calc(100% - 80px); height:calc(100% - 80px); max-width:1400px; max-height:1000px; padding:28px; background:var(--glass-bg); backdrop-filter: blur(10px) saturate(120%); border-radius:24px; border:1px solid rgba(255,255,255,0.06); box-shadow:0 10px 40px rgba(0,0,0,0.6); display:flex; flex-direction:column; }
+  .top-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  .title { font-size:1.5rem; font-weight:700; letter-spacing:0.2px; }
+  .inner-rect { flex:1; background:rgba(255,255,255,0.03); border-radius:18px; backdrop-filter: blur(6px); padding:20px; overflow:auto; display:flex; flex-direction:column; align-items:center; gap:18px; }
+  .leaderboard-frame { width:100%; max-width:1100px; height:100%; background:rgba(0,0,0,0.18); border-radius:12px; padding:18px; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; gap:12px; overflow:auto; }
+  .card { width: calc(100% - 40px); max-width:1000px; background:var(--card-bg); border-radius:12px; display:flex; gap:14px; padding:12px; align-items:center; position:relative; box-shadow: 0 6px 18px rgba(0,0,0,0.5); }
+  .card-left { min-width:240px; max-width:360px; width:34%; height:140px; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.35); border-radius:8px; overflow:hidden; }
+  .card-left iframe { width:100%; height:100%; border:0; display:block; }
+  .card-mid { flex:1; display:flex; flex-direction:column; gap:6px; padding-right:8px; }
+  .rank-row { display:flex; align-items:center; gap:12px; }
+  .rank { font-size:2rem; font-weight:800; color:var(--accent1); min-width:68px; text-align:center; }
+  .level-name { font-size:1.05rem; font-weight:700; word-break:break-word; }
+  .creator { font-size:0.95rem; color:var(--muted); }
+  .card-top-right { position:absolute; top:10px; right:12px; font-weight:600; font-size:0.9rem; color:var(--muted); background: rgba(255,255,255,0.03); padding:6px 8px; border-radius:8px; }
+  .btn { padding:10px 14px; border-radius:10px; border:none; cursor:pointer; font-weight:700; background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#fff; }
+  .btn.ghost { background:transparent; border:1px solid rgba(255,255,255,0.06); }
+  .overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:20; background:rgba(0,0,0,0.72); opacity:0; pointer-events:none; transition:opacity .25s ease; }
+  .overlay.active { opacity:1; pointer-events:auto; }
+  .popup { background: rgba(255,255,255,0.12); backdrop-filter: blur(16px); border-radius:20px; border:1px solid rgba(255,255,255,0.15); padding:20px; width:420px; max-width:94%; color:#fff; display:flex; flex-direction:column; gap:10px; box-shadow:0 12px 40px rgba(0,0,0,0.5); transform:translateY(20px); transition:transform .3s; }
+  .popup input[type=text], .popup input[type=url] { padding:10px 12px; border-radius:10px; border:none; background:rgba(255,255,255,0.06); color:#fff; outline:none; }
+  .error-msg { color:#ff6b6b; font-size:0.9rem; display:none; }
+  .user-info { position:absolute; bottom:10px; left:10px; display:flex; align-items:center; gap:10px; font-size:0.95rem; z-index:30; background: rgba(0,0,0,0.35); padding:8px 10px; border-radius:12px; backdrop-filter: blur(4px); border:1px solid rgba(255,255,255,0.04); }
+  .user-info .name { font-weight:700; }
+  .user-info .small-actions { display:flex; gap:6px; align-items:center; margin-left:8px; }
+  .user-info .small-actions button { padding:6px 8px; font-size:0.85rem; background:transparent; border:1px solid rgba(255,255,255,0.06); color:inherit; border-radius:8px; }
+  @media (max-width:800px){ .card { flex-direction:column; align-items:flex-start; height:auto; } .card-left{ width:100%; height:160px; } .rank { font-size:1.6rem; min-width:48px; } .card-top-right{ position:static; align-self:flex-end; margin-left:auto; } }
+</style>
+</head>
+<body>
+<div class="bg">
+  <div class="glass">
+    <div class="top-bar">
+      <div class="title">Kacper's List — Leaderboard</div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btn" id="openSubmit">Submit Hardest</button>
+        <a href="/submissions.html" class="btn btn-ghost" style="text-decoration:none; color:inherit;">Submissions</a>
+      </div>
+    </div>
+
+    <div class="inner-rect">
+      <div class="leaderboard-frame" id="leaderboardContainer">
+        <!-- Cards injected here -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Submit Popup -->
+<div class="overlay" id="submitOverlay">
+  <div class="popup">
+    <h3>Submit a Level</h3>
+    <input type="text" id="subName" placeholder="Level Name">
+    <div class="error-msg" id="errName">Level name required</div>
+    <input type="text" id="subCreator" placeholder="Level Creator">
+    <div class="error-msg" id="errCreator">Creator required</div>
+    <input type="url" id="subYT" placeholder="YouTube Link (https://...)">
+    <div class="error-msg" id="errYT">Valid YouTube link required</div>
+
+    <div style="display:flex; justify-content:flex-end;">
+      <button class="btn" id="confirmSubmit">Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Login overlay (Discord only) -->
+<div class="overlay" id="acctOverlay">
+  <div class="popup" style="width:420px;">
+    <h3>Sign in with Discord</h3>
+    <p style="margin:0 0 8px 0; color:var(--muted)">We use Discord OAuth to sign you in. No password required.</p>
+    <div style="display:flex; justify-content:flex-end;">
+      <a href="/auth/discord" id="discordLogin" class="btn">Login with Discord</a>
+    </div>
+  </div>
+</div>
+
+<!-- Termination popup for banned users -->
+<div class="overlay" id="terminatedOverlay">
+  <div class="popup" style="width:420px;">
+    <h3>Your account got terminated!</h3>
+    <div id="terminatedReason" style="color:var(--muted)"></div>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+      <a class="btn" id="termLogout" href="/auth/logout">Log out</a>
+    </div>
+  </div>
+</div>
+
+<!-- bottom-left user info -->
+<div class="user-info" id="userInfo" style="display:none;">
+  <div style="display:flex; flex-direction:column;">
+    <span class="name" id="userName">User</span>
+    <small style="color:var(--muted)" id="userTag"></small>
+  </div>
+  <div class="small-actions">
+    <button id="openLogout" title="Logout">Logout</button>
+  </div>
+</div>
+
+<script>
+/* Client-side script that talks to the server endpoints */
+const api = {
+  getSession: () => fetch('/api/session', { credentials: 'same-origin' }).then(r=>r.json()).catch(()=>({user:null})),
+  getLeaderboard: () => fetch('/api/leaderboard?_=' + Date.now(), { cache: 'no-store' }).then(r=>r.json()).catch(()=>[]),
+  getUsers: () => fetch('/api/users?_=' + Date.now(), { cache: 'no-store' }).then(r=>r.json()).catch(()=>[]),
+  postSubmission: (payload) => fetch('/api/submissions', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify(payload)}).then(r=>r.json())
+};
+
+function extractYouTubeId(url){
+  if(!url) return null;
+  const regex = /(?:v=|\/embed\/|\.be\/|v\/|vi=)([A-Za-z0-9_-]{6,11})/;
+  const m = url.match(regex);
+  if(m && m[1]) return m[1];
+  return null;
+}
+function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
+
+const submitOverlay = document.getElementById('submitOverlay');
+const openSubmit = document.getElementById('openSubmit');
+const confirmSubmit = document.getElementById('confirmSubmit');
+
+const acctOverlay = document.getElementById('acctOverlay');
+const terminatedOverlay = document.getElementById('terminatedOverlay');
+
+const userInfoBox = document.getElementById('userInfo');
+const userNameEl = document.getElementById('userName');
+const userTagEl = document.getElementById('userTag');
+const openLogout = document.getElementById('openLogout');
+
+let currentUser = null;
+
+function show(el){ el.classList.add('active'); el.style.display='flex'; }
+function hide(el){ el.classList.remove('active'); el.style.display='none'; }
+
+openSubmit.addEventListener('click', async ()=>{
+  if(!currentUser){ show(acctOverlay); return; }
+  if(currentUser.isBanned){ document.getElementById('terminatedReason').textContent = currentUser.banReason || 'No reason provided'; show(terminatedOverlay); return; }
+  show(submitOverlay);
+});
+
+confirmSubmit.addEventListener('click', async ()=>{
+  const name = document.getElementById('subName').value.trim();
+  const creator = document.getElementById('subCreator').value.trim();
+  const yt = document.getElementById('subYT').value.trim();
+  const errName = document.getElementById('errName');
+  const errCreator = document.getElementById('errCreator');
+  const errYT = document.getElementById('errYT');
+
+  let ok = true;
+  if(!name){ errName.style.display='block'; ok=false; } else errName.style.display='none';
+  if(!creator){ errCreator.style.display='block'; ok=false; } else errCreator.style.display='none';
+  if(yt && !extractYouTubeId(yt)){ errYT.style.display='block'; ok=false; } else errYT.style.display='none';
+
+  if(!ok) return;
+
+  const payload = { name, creator, youtube: yt };
+  const resp = await api.postSubmission(payload);
+  if(resp && resp.ok){
+    hide(submitOverlay);
+    document.getElementById('subName').value='';
+    document.getElementById('subCreator').value='';
+    document.getElementById('subYT').value='';
+    alert('Submission saved. Admins must approve it from Submissions page.');
+  } else {
+    alert(resp.error || 'Failed to submit.');
+  }
+});
+
+openLogout.addEventListener('click', ()=> {
+  window.location.href = '/auth/logout';
+});
+
+// Render leaderboard
+async function renderLeaderboard(){
+  const container = document.getElementById('leaderboardContainer');
+  container.innerHTML = '';
+  const list = await api.getLeaderboard();
+  const arr = Array.isArray(list) ? list.slice().sort((a,b)=>Number(a.rank || 9999) - Number(b.rank || 9999)) : [];
+  if(arr.length === 0){
+    const empty = document.createElement('div');
+    empty.style.opacity = 0.8;
+    empty.style.color = 'var(--muted)';
+    empty.style.marginTop = '24px';
+    empty.style.textAlign = 'center';
+    empty.textContent = 'No leaderboard entries yet — admins must approve submissions.';
+    container.appendChild(empty);
+    return;
+  }
+
+  arr.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const left = document.createElement('div'); left.className='card-left';
+    const ytId = extractYouTubeId(item.youtube);
+    if(ytId){
+      const iframe = document.createElement('iframe');
+      iframe.src = `https://www.youtube.com/embed/${ytId}`;
+      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      iframe.allowFullscreen = true;
+      left.appendChild(iframe);
+    } else {
+      left.textContent = 'No video';
+    }
+    const mid = document.createElement('div'); mid.className='card-mid';
+    const rankRow = document.createElement('div'); rankRow.className='rank-row';
+    const rankEl = document.createElement('div'); rankEl.className='rank'; rankEl.textContent = item.rank || '-';
+    const nameEl = document.createElement('div'); nameEl.className='level-name'; nameEl.textContent = item.name || 'Unknown level';
+    rankRow.appendChild(rankEl); rankRow.appendChild(nameEl);
+    const creator = document.createElement('div'); creator.className='creator'; creator.textContent = 'by ' + (item.creator || 'Unknown');
+    mid.appendChild(rankRow); mid.appendChild(creator);
+    const topRight = document.createElement('div'); topRight.className='card-top-right';
+    topRight.textContent = 'sent by ' + (item.submittedBy || 'Unknown');
+    card.appendChild(left); card.appendChild(mid); card.appendChild(topRight);
+    container.appendChild(card);
+  });
+}
+
+// load session and initial UI
+async function boot(){
+  const s = await api.getSession();
+  currentUser = s.user || null;
+  if(currentUser){
+    // If user is banned, show terminated overlay
+    if(currentUser.isBanned){
+      document.getElementById('terminatedReason').textContent = currentUser.banReason || 'No reason provided';
+      show(terminatedOverlay);
+    } else {
+      userInfoBox.style.display = 'flex';
+      userNameEl.textContent = currentUser.username || ('Discord#' + (currentUser.discordId || ''));
+      userTagEl.textContent = currentUser.mto ? 'MTO' : '';
+    }
+  } else {
+    userInfoBox.style.display = 'none';
+  }
+  if (location.search.includes('terminated=1')) {
+    // fetch terminated info for this user
+    const term = await fetch('/api/terminated').then(r=>r.json()).catch(()=>({}));
+    // can't identify which user here client-side without session, so just show overlay
+    if (!currentUser) {
+      document.getElementById('terminatedReason').textContent = 'Your account was terminated by moderators.';
+      show(terminatedOverlay);
+    }
+  }
+  await renderLeaderboard();
+}
+
+boot();
+
+</script>
+</body>
+</html>
