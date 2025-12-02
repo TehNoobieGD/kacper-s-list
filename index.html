@@ -39,7 +39,7 @@
   .popup { background: rgba(255,255,255,0.12); backdrop-filter: blur(16px); border-radius:20px; border:1px solid rgba(255,255,255,0.15); padding:20px; width:420px; max-width:94%; color:#fff; display:flex; flex-direction:column; gap:10px; box-shadow:0 12px 40px rgba(0,0,0,0.5); transform:translateY(20px); transition:transform .3s; }
   .overlay.active .popup { transform:none; }
   .popup h3 { margin:0; font-size:1.15rem; }
-  .popup input[type=text], .popup input[type=url], .popup input[type=number] { padding:10px 12px; border-radius:10px; border:none; background:rgba(255,255,255,0.06); color:#fff; outline:none; }
+  .popup input[type=text], .popup input[type=url], .popup input[type=password] { padding:10px 12px; border-radius:10px; border:none; background:rgba(255,255,255,0.06); color:#fff; outline:none; }
   .popup .row { display:flex; gap:8px; }
   .popup .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:6px; }
   .btn { padding:10px 14px; border-radius:10px; border:none; cursor:pointer; font-weight:700; background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#fff; }
@@ -56,6 +56,9 @@
   .user-info button { padding:6px 10px; border:none; border-radius:8px; cursor:pointer; background:#F44336; color:#fff; font-weight:700; margin-left:8px; }
   .user-info .small-actions { display:flex; gap:6px; align-items:center; margin-left:8px; }
   .user-info .small-actions button { padding:6px 8px; font-size:0.85rem; background:transparent; border:1px solid rgba(255,255,255,0.06); color:inherit; border-radius:8px; }
+
+  .terminate-popup { display:none; position:fixed; inset:0; align-items:center; justify-content:center; z-index:60; background:rgba(0,0,0,0.8); }
+  .terminate-popup .popup { width:520px; }
 
   @media (max-width:800px){
     .card { flex-direction:column; align-items:flex-start; height:auto; }
@@ -103,7 +106,7 @@
 
 <!-- Account Overlay: SIGNUP / LOGIN -->
 <div class="overlay" id="acctOverlay">
-  <div class="popup" style="width:480px;">
+  <div class="popup" style="width:520px;">
     <div class="tabs">
       <div class="tab active" id="tabSignup">Sign up</div>
       <div class="tab" id="tabLogin">Login</div>
@@ -112,8 +115,9 @@
     <!-- Signup -->
     <div id="signupPanel">
       <h3>Create your username</h3>
-      <p style="margin:0;color:var(--muted)">Pick a username that others will see. It must be unique on this site.</p>
+      <p style="margin:0;color:var(--muted)">Pick a username and password that others will see. It must be unique.</p>
       <input type="text" id="acctName" placeholder="Username (min 2 chars)">
+      <input type="password" id="acctPass" placeholder="Password (min 6 chars)" style="margin-top:6px;">
       <div class="error-msg" id="acctErr">Username required</div>
       <div class="error-msg" id="acctTaken">That username is already taken</div>
       <div style="display:flex; gap:8px; justify-content:flex-end;">
@@ -124,14 +128,26 @@
     <!-- Login -->
     <div id="loginPanel" style="display:none;">
       <h3>Login</h3>
-      <p style="margin:0;color:var(--muted)">Type your username to log in.</p>
+      <p style="margin:0;color:var(--muted)">Type your username and password to log in.</p>
       <input type="text" id="loginName" placeholder="Username">
-      <div class="error-msg" id="loginErr">Username not found</div>
+      <input type="password" id="loginPass" placeholder="Password" style="margin-top:6px;">
+      <div class="error-msg" id="loginErr">Username or password not found</div>
       <div style="display:flex; gap:8px; justify-content:flex-end;">
         <button class="btn" id="loginBtn">Login</button>
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- Termination popup -->
+<div class="terminate-popup" id="terminatePopup">
+  <div class="popup">
+    <h3>Your account got terminated!</h3>
+    <p id="terminateReason" style="margin:0;color:var(--muted)"></p>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+      <button id="terminateClose" class="btn">Log out</button>
+    </div>
   </div>
 </div>
 
@@ -148,6 +164,14 @@
 </div>
 
 <script>
+/* ---------- Helper crypto (SHA-256) ---------- */
+async function sha256hex(message){
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
 /* ---------- Utilities ---------- */
 function extractYouTubeId(url){
   if(!url) return null;
@@ -157,18 +181,77 @@ function extractYouTubeId(url){
   return null;
 }
 function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
+function escapeAttr(s){ return s ? s.replace(/"/g,'&quot;') : ''; }
 
-/* ---------- Users & siteUser ---------- */
-function getUsers(){ return JSON.parse(localStorage.getItem('users') || '[]'); }
-function saveUsers(u){ localStorage.setItem('users', JSON.stringify(u)); }
-function findUserByName(name){
-  if(!name) return null;
-  const users = getUsers();
-  return users.find(u => u.username.toLowerCase() === name.toLowerCase()) || null;
+/* ---------- Data storage strategy ----------
+   - Try to fetch JSON files: /users.json, /submissions.json, /leaderboard.json
+   - If fetch fails (e.g., local file), fall back to localStorage copy
+   - All writes (signup, admin actions) update in-memory arrays and localStorage
+   - Admins can export the updated JSON from the Submissions page to persist changes to the repo manually.
+*/
+let DATA = {
+  users: [],
+  submissions: [],
+  leaderboard: [],
+  terminated: {} // mapping username -> reason (keeps ban reasons)
+};
+
+async function loadInitialJSON(){
+  // helper to fetch and parse JSON, with graceful fallback
+  async function tryLoad(path){
+    try{
+      const r = await fetch(path, {cache: "no-store"});
+      if(!r.ok) throw new Error('fetch failed');
+      const j = await r.json();
+      return j;
+    }catch(e){
+      return null;
+    }
+  }
+
+  const [u,s,l] = await Promise.all([ tryLoad('users.json'), tryLoad('submissions.json'), tryLoad('leaderboard.json') ]);
+
+  // prefer fetched files, otherwise use localStorage saved data, otherwise empty
+  DATA.users = Array.isArray(u) ? u : (JSON.parse(localStorage.getItem('users')||'null') || []);
+  DATA.submissions = Array.isArray(s) ? s : (JSON.parse(localStorage.getItem('submissions')||'null') || []);
+  DATA.leaderboard = Array.isArray(l) ? l : (JSON.parse(localStorage.getItem('leaderboard')||'null') || []);
+  DATA.terminated = JSON.parse(localStorage.getItem('terminated')||'{}');
+
+  // normalize missing fields
+  for(const usr of DATA.users){
+    if(typeof usr.mto === 'undefined') usr.mto = false;
+    if(typeof usr.isBanned === 'undefined') usr.isBanned = false;
+    if(!usr.tag) usr.tag = generateTag(DATA.users);
+  }
+
+  // persist into localStorage so changes survive
+  persistAllToLocal();
 }
-function generateTag(){
-  // find existing tags (4-digit), then pick a new one
-  const users = getUsers();
+
+/* persist helpers */
+function persistAllToLocal(){
+  localStorage.setItem('users', JSON.stringify(DATA.users));
+  localStorage.setItem('submissions', JSON.stringify(DATA.submissions));
+  localStorage.setItem('leaderboard', JSON.stringify(DATA.leaderboard));
+  localStorage.setItem('terminated', JSON.stringify(DATA.terminated));
+}
+
+/* download/export helpers for admin (they can manually upload to GitHub) */
+function downloadJSON(filename, obj){
+  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* ---------- Users helpers ---------- */
+function generateTag(usersList){
+  const users = usersList || DATA.users;
   const taken = new Set(users.map(u => u.tag));
   for(let i=1;i<10000;i++){
     const t = String(i).padStart(4,'0');
@@ -176,27 +259,20 @@ function generateTag(){
   }
   return String(Date.now()).slice(-4);
 }
-
-function setSiteUser(user){
-  siteUser = user;
-  localStorage.setItem('siteUser', JSON.stringify(user));
-  updateUserUI();
-}
-function clearSiteUser(){
-  siteUser = null;
-  localStorage.removeItem('siteUser');
-  updateUserUI();
+function findUserByName(name){
+  if(!name) return null;
+  return DATA.users.find(u => u.username.toLowerCase() === name.toLowerCase()) || null;
 }
 
-/* ---------- State ---------- */
+/* ---------- UI elements ---------- */
 const submitOverlay = document.getElementById('submitOverlay');
 const openPopup = document.getElementById('openPopup');
 const confirmSubmit = document.getElementById('confirmSubmit');
 
 const leaderboardContainer = document.getElementById('leaderboardContainer');
 const userInfoBox = document.getElementById('userInfo');
-const userName = document.getElementById('userName');
-const userTag = document.getElementById('userTag');
+const userNameEl = document.getElementById('userName');
+const userTagEl = document.getElementById('userTag');
 const logoutBtn = document.getElementById('logoutBtn');
 const toggleUserInfo = document.getElementById('toggleUserInfo');
 
@@ -207,15 +283,21 @@ const tabSignup = document.getElementById('tabSignup');
 const tabLogin = document.getElementById('tabLogin');
 
 const acctNameEl = document.getElementById('acctName');
+const acctPassEl = document.getElementById('acctPass');
 const acctErr = document.getElementById('acctErr');
 const acctTaken = document.getElementById('acctTaken');
 const acctConfirm = document.getElementById('acctConfirm');
 
 const loginNameEl = document.getElementById('loginName');
+const loginPassEl = document.getElementById('loginPass');
 const loginErr = document.getElementById('loginErr');
 const loginBtn = document.getElementById('loginBtn');
 
-let siteUser = JSON.parse(localStorage.getItem('siteUser') || 'null');
+const terminatePopup = document.getElementById('terminatePopup');
+const terminateReasonEl = document.getElementById('terminateReason');
+const terminateClose = document.getElementById('terminateClose');
+
+let siteUser = JSON.parse(localStorage.getItem('siteUser')||'null');
 
 /* ---------- Overlay helpers ---------- */
 function showAcctOverlay(){ acctOverlay.classList.add('active'); acctOverlay.style.display='flex'; }
@@ -227,12 +309,12 @@ function hideSubmitOverlay(){ submitOverlay.classList.remove('active'); submitOv
 function updateUserUI(){
   if(!siteUser){ userInfoBox.style.display='none'; return; }
   userInfoBox.style.display='flex';
-  userName.textContent = siteUser.username || 'User';
-  userTag.textContent = siteUser.tag ? ('#' + siteUser.tag) : '';
-  
+  userNameEl.textContent = siteUser.username || 'User';
+  userTagEl.textContent = siteUser.tag ? ('#' + siteUser.tag) : '';
   // show MTO badge if user is MTO
+  const existingBadge = document.getElementById('mtoBadge');
   if(siteUser.mto){
-    if(!document.getElementById('mtoBadge')){
+    if(!existingBadge){
       const badge = document.createElement('span');
       badge.id = 'mtoBadge';
       badge.textContent = 'MTO';
@@ -243,16 +325,14 @@ function updateUserUI(){
       badge.style.color='#000';
       badge.style.background='linear-gradient(135deg,#ffdd55,#ffaa33)';
       badge.style.borderRadius='6px';
-      userName.parentNode.appendChild(badge);
+      userNameEl.parentNode.appendChild(badge);
     }
   } else {
-    const badge = document.getElementById('mtoBadge');
-    if(badge) badge.remove();
+    if(existingBadge) existingBadge.remove();
   }
 }
 
-
-/* toggle display of the user info box (gives "both" behaviors) */
+/* toggle display of the user info box */
 let userInfoHidden = false;
 toggleUserInfo.addEventListener('click', ()=>{
   userInfoHidden = !userInfoHidden;
@@ -270,36 +350,82 @@ tabLogin.addEventListener('click', ()=>{
   signupPanel.style.display='none'; loginPanel.style.display='block';
 });
 
-/* ---------- Signup & Login ---------- */
-acctConfirm.addEventListener('click', ()=>{
+/* ---------- Signup & Login (with password) ---------- */
+acctConfirm.addEventListener('click', async ()=>{
   const name = acctNameEl.value.trim();
+  const pass = acctPassEl.value || '';
   acctErr.style.display='none';
   acctTaken.style.display='none';
   if(!name || name.length < 2){ acctErr.textContent='Username must be at least 2 characters'; acctErr.style.display='block'; return; }
+  if(pass.length < 6){ acctErr.textContent='Password must be at least 6 characters'; acctErr.style.display='block'; return; }
   if(findUserByName(name)){ acctTaken.style.display='block'; return; }
-  const users = getUsers();
+
+  const passHash = await sha256hex(pass);
   const tag = generateTag();
-  const newUser = { username: name, tag, createdAt: Date.now() };
-  users.push(newUser);
-  saveUsers(users);
-  setSiteUser(newUser);
+  const newUser = { username: name, tag, passwordHash: passHash, createdAt: Date.now(), mto: false, isBanned: false };
+  DATA.users.push(newUser);
+  persistAllToLocal();
+  // sign in
+  siteUser = { username: newUser.username, tag: newUser.tag, mto: newUser.mto, isBanned: newUser.isBanned };
+  localStorage.setItem('siteUser', JSON.stringify(siteUser));
+  updateUserUI();
   hideAcctOverlay();
+  acctNameEl.value = ''; acctPassEl.value = '';
+  alert('Account created and signed in.');
 });
 
-loginBtn.addEventListener('click', ()=>{
+loginBtn.addEventListener('click', async ()=>{
   const name = loginNameEl.value.trim();
+  const pass = loginPassEl.value || '';
   loginErr.style.display='none';
-  if(!name){ loginErr.textContent='Username not found'; loginErr.style.display='block'; return; }
+  if(!name || !pass){ loginErr.textContent='Username or password not found'; loginErr.style.display='block'; return; }
   const user = findUserByName(name);
-  if(!user){ loginErr.textContent='Username not found'; loginErr.style.display='block'; return; }
-  setSiteUser(user);
+  if(!user){ loginErr.textContent='Username or password not found'; loginErr.style.display='block'; return; }
+  if(user.isBanned){
+    // if banned, show termination reason if present in DATA.terminated
+    const reason = DATA.terminated[user.username] || 'No reason provided';
+    terminateReasonEl.textContent = reason;
+    terminatePopup.style.display = 'flex';
+    terminatePopup.classList.add('active');
+    return;
+  }
+  const passHash = await sha256hex(pass);
+  if(passHash !== (user.passwordHash||'')){ loginErr.textContent='Username or password not found'; loginErr.style.display='block'; return; }
+
+  siteUser = { username: user.username, tag: user.tag, mto: user.mto, isBanned: user.isBanned };
+  localStorage.setItem('siteUser', JSON.stringify(siteUser));
+  updateUserUI();
   hideAcctOverlay();
+  loginNameEl.value = ''; loginPassEl.value = '';
 });
 
 /* logout */
 logoutBtn.addEventListener('click', ()=>{
-  if(confirm('Logout?')){ clearSiteUser(); showAcctOverlay(); }
+  if(confirm('Logout?')){ localStorage.removeItem('siteUser'); siteUser = null; updateUserUI(); showAcctOverlay(); }
 });
+
+/* terminate popup close */
+terminateClose.addEventListener('click', ()=>{
+  // log out and force login/signup
+  terminatePopup.style.display = 'none';
+  localStorage.removeItem('siteUser');
+  siteUser = null;
+  updateUserUI();
+  showAcctOverlay();
+});
+
+/* when page loads, if siteUser is persisted, check banned status */
+function checkBannedOnBoot(){
+  if(!siteUser) return;
+  const user = findUserByName(siteUser.username);
+  if(!user) return;
+  if(user.isBanned){
+    const reason = DATA.terminated[user.username] || 'No reason provided';
+    terminateReasonEl.textContent = reason;
+    terminatePopup.style.display = 'flex';
+    terminatePopup.classList.add('active');
+  }
+}
 
 /* ---------- Submissions / Leaderboard logic ---------- */
 openPopup.addEventListener('click', ()=>{
@@ -317,7 +443,7 @@ confirmSubmit.addEventListener('click', ()=>{
 
   let ok = true;
 
-  // only validate if user is not MTO (MTO may skip validation) — BUT submissions are still **not** auto-approved.
+  // only validate if user is not MTO
   if(!siteUser?.mto){
     if(!name){ errName.style.display='block'; ok=false; } else errName.style.display='none';
     if(!creator){ errCreator.style.display='block'; ok=false; } else errCreator.style.display='none';
@@ -326,30 +452,26 @@ confirmSubmit.addEventListener('click', ()=>{
 
   if(!ok) return;
 
-  const submissions = JSON.parse(localStorage.getItem('submissions') || '[]');
-  submissions.push({
+  DATA.submissions.push({
     name,
     creator,
     youtube: yt,
     submittedBy: siteUser ? siteUser.username : 'Unknown',
     submittedAt: Date.now()
   });
-  localStorage.setItem('submissions', JSON.stringify(submissions));
+  persistAllToLocal();
   hideSubmitOverlay();
   document.getElementById('subName').value='';
   document.getElementById('subCreator').value='';
   document.getElementById('subYT').value='';
   alert('Submission saved! The admins will review it on Submissions page.');
-  // NOTE: intentionally do NOT add to leaderboard here — only admin approval in submissions page will add entries.
+  // intentionally do NOT add to leaderboard here — only admin approval in submissions page will add entries.
 });
 
-/* Render leaderboard cards - only uses approved leaderboard array */
+/* Render leaderboard cards - only uses approved leaderboard array (DATA.leaderboard) */
 function loadLeaderboard(){
   leaderboardContainer.innerHTML = '';
-  let leaderboard = JSON.parse(localStorage.getItem('leaderboard') || '[]');
-
-  // Do NOT fall back to submissions; show only approved leaderboard entries
-  leaderboard = leaderboard.map(x=>({ ...x, rank: Number(x.rank) || 9999 })).sort((a,b)=>a.rank-b.rank);
+  const leaderboard = (DATA.leaderboard || []).map(x=>({ ...x, rank: Number(x.rank) || 9999 })).sort((a,b)=>a.rank-b.rank);
 
   if(leaderboard.length === 0){
     const empty = document.createElement('div');
@@ -413,12 +535,42 @@ function loadLeaderboard(){
 }
 
 /* initial boot */
-updateUserUI();
-if(!siteUser) showAcctOverlay();
-loadLeaderboard();
+(async ()=>{
+  await loadInitialJSON();
+  // load persisted logged-in user
+  siteUser = JSON.parse(localStorage.getItem('siteUser')||'null');
+  updateUserUI();
+  // check if banned
+  checkBannedOnBoot();
+  if(!siteUser) showAcctOverlay();
+  loadLeaderboard();
+})();
 
-/* make load functions globally available for admin page to refresh UI */
-window.loadLeaderboard = loadLeaderboard;
+/* Expose helpers for admin page (submissions.html) to read current arrays and export */
+window.getDataForAdmin = function(){
+  // return deep copy so admin page won't mutate direct reference by accident
+  return {
+    users: JSON.parse(JSON.stringify(DATA.users)),
+    submissions: JSON.parse(JSON.stringify(DATA.submissions)),
+    leaderboard: JSON.parse(JSON.stringify(DATA.leaderboard)),
+    terminated: JSON.parse(JSON.stringify(DATA.terminated))
+  };
+};
+window.saveAdminData = function(payload){
+  // payload should contain users, submissions, leaderboard, terminated
+  if(payload.users) DATA.users = payload.users;
+  if(payload.submissions) DATA.submissions = payload.submissions;
+  if(payload.leaderboard) DATA.leaderboard = payload.leaderboard;
+  if(payload.terminated) DATA.terminated = payload.terminated;
+  persistAllToLocal();
+};
+window.exportAll = function(){
+  // convenience to download three files at once
+  downloadJSON('users.json', DATA.users);
+  downloadJSON('submissions.json', DATA.submissions);
+  downloadJSON('leaderboard.json', DATA.leaderboard);
+  downloadJSON('terminated.json', DATA.terminated);
+};
 
 </script>
 </body>
