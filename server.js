@@ -1,537 +1,517 @@
-/**
- * server.js
- *
- * - Serves static files from /public
- * - Provides REST API endpoints for reading/writing JSON files:
- *     GET /api/users
- *     GET /api/submissions
- *     GET /api/leaderboard
- *     GET /api/terminated
- *
- * - POST /api/submissions  (authenticated via session cookie from Discord OAuth)
- * - Admin POST endpoints:
- *     POST /api/admin/approve   { submissionId, rank }
- *     POST /api/admin/decline   { submissionId }
- *     POST /api/admin/delete-user { username, reason }
- *     POST /api/admin/add-user  { username, optional passwordHash, mto }
- * - Discord OAuth:
- *     GET  /auth/discord -> redirect to Discord
- *     GET  /auth/discord/callback -> exchange code, get user, create local user record, set session cookie
- *     GET  /auth/logout -> clear cookie
- *
- * - Persists JSONs into data/*.json on disk.
- * - Optionally commits updated files to GitHub using GITHUB_TOKEN and GITHUB_REPO (owner/repo) + GITHUB_BRANCH.
- *
- * Required environment variables (see README section below):
- * - COOKIE_SECRET: secret to sign session JWT
- * - DISCORD_CLIENT_ID
- * - DISCORD_CLIENT_SECRET
- * - DISCORD_REDIRECT_URI (should match your registered Discord redirect URL)
- * - ADMIN_IDS (comma-separated Discord user IDs that are admins)
- * - GITHUB_TOKEN (optional — if provided, server will push JSON changes to repo via Octokit)
- * - GITHUB_REPO (owner/repo) e.g. myuser/myrepo  (optional)
- * - GITHUB_BRANCH (default "main")
- *
- * Deploy this somewhere public (Render, Railway, Fly, Heroku, VPS).
- */
+// server.js
+// Node/Express server for Kacper's List
+// - Serves files from /public
+// - Exposes /api/* endpoints that read/write JSON files in /data
+// - Implements Discord OAuth code exchange (server-side) using provided CLIENT_ID and CLIENT_SECRET
+//
+// NOTE: This file stores secrets in plaintext (as requested). For production use, store secrets in env vars.
 
-require('dotenv').config();
 const express = require('express');
-const path = require('path');
-const fs = require('fs-extra');
+const session = require('express-session');
 const bodyParser = require('body-parser');
-const cookieParser = require('cookie-parser');
 const fetch = require('node-fetch');
-const jwt = require('jsonwebtoken');
-const { Octokit } = require('@octokit/rest');
+const fs = require('fs').promises;
+const path = require('path');
 const cors = require('cors');
-const { v4: uuidv4 } = require('uuid');
+const morgan = require('morgan');
 
 const app = express();
+app.use(morgan('dev'));
 app.use(cors({ origin: true, credentials: true }));
 app.use(bodyParser.json({ limit: '1mb' }));
-app.use(cookieParser());
 
+// Session config (very basic)
+app.use(session({
+  secret: 'kacpers-list-secret-please-change', // change if you want
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 7 * 24 * 3600 * 1000 } // 7 days
+}));
+
+// --- CONFIG: replace these if you want or use env vars ---
+const CLIENT_ID = 1445110495618269225;
+const CLIENT_SECRET = 'LD-t0Y4N0KMg1oz9S_MWv44gKqc63Edt';
+
+// If you deploy the server to a domain, set SERVER_BASE_URL accordingly (no trailing slash)
+const SERVER_BASE_URL = process.env.SERVER_BASE_URL || 'http://localhost:3000';
+
+// For Discord endpoints
+const DISCORD_TOKEN_URL = 'https://discord.com/api/oauth2/token';
+const DISCORD_API_ME = 'https://discord.com/api/users/@me';
+
+// Admin Discord IDs who can access submissions admin UI
+const ADMIN_DISCORD_IDS = new Set([
+  '1120387357292626053',
+  '1008401746692931634'
+]);
+
+// Data file paths (in /data)
 const DATA_DIR = path.join(__dirname, 'data');
-fs.ensureDirSync(DATA_DIR);
+const FILE_USERS = path.join(DATA_DIR, 'users.json');
+const FILE_SUBMISSIONS = path.join(DATA_DIR, 'submissions.json');
+const FILE_LEADERBOARD = path.join(DATA_DIR, 'leaderboard.json');
+const FILE_TERMINATED = path.join(DATA_DIR, 'terminated.json');
 
-const PATH_USERS = path.join(DATA_DIR, 'users.json');
-const PATH_SUBMISSIONS = path.join(DATA_DIR, 'submissions.json');
-const PATH_LEADERBOARD = path.join(DATA_DIR, 'leaderboard.json');
-const PATH_TERMINATED = path.join(DATA_DIR, 'terminated.json');
-
-const DEFAULT_FILES = [
-  { p: PATH_USERS, v: [] },
-  { p: PATH_SUBMISSIONS, v: [] },
-  { p: PATH_LEADERBOARD, v: [] },
-  { p: PATH_TERMINATED, v: {} }
-];
-
-for (const f of DEFAULT_FILES) {
-  if (!fs.existsSync(f.p)) fs.writeFileSync(f.p, JSON.stringify(f.v, null, 2));
-}
-
-// Environment config
-const PORT = process.env.PORT || 3000;
-const COOKIE_SECRET = process.env.COOKIE_SECRET || 'replace_this_with_a_real_secret';
-const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '1445110495618269225';
-const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
-const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || (process.env.BASE_URL ? `${process.env.BASE_URL}/auth/discord/callback` : null);
-const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean); // list of discord IDs
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || null;
-const GITHUB_REPO = process.env.GITHUB_REPO || null; // format owner/repo
-const GITHUB_BRANCH = process.env.GITHUB_BRANCH || 'main';
-
-// Octokit if token provided
-let octokit = null;
-if (GITHUB_TOKEN && GITHUB_REPO) {
-  octokit = new Octokit({ auth: GITHUB_TOKEN });
-}
-
-// Helpers for file ops
-async function readJson(filePath, fallback) {
+// Ensure data dir exists and files exist
+async function ensureFiles() {
   try {
-    if (!fs.existsSync(filePath)) return fallback;
-    const raw = await fs.readFile(filePath, 'utf8');
-    return JSON.parse(raw);
-  } catch (e) {
-    console.error('readJson error', filePath, e);
-    return fallback;
-  }
-}
-async function writeJsonAtomic(filePath, obj) {
-  await fs.writeFile(filePath + '.tmp', JSON.stringify(obj, null, 2));
-  await fs.move(filePath + '.tmp', filePath, { overwrite: true });
-}
-
-// Optional: commit file to GitHub
-async function commitToGitHub(filePathOnRepo, contentStr, message) {
-  if (!octokit || !GITHUB_REPO) {
-    throw new Error('GitHub not configured (GITHUB_TOKEN and GITHUB_REPO required)');
-  }
-  const [owner, repo] = GITHUB_REPO.split('/');
-  // get current sha if exists
-  try {
-    const getRes = await octokit.repos.getContent({
-      owner, repo,
-      path: filePathOnRepo,
-      ref: GITHUB_BRANCH
-    });
-    const sha = getRes.data.sha;
-    const encoded = Buffer.from(contentStr, 'utf8').toString('base64');
-    const putRes = await octokit.repos.createOrUpdateFileContents({
-      owner, repo,
-      path: filePathOnRepo,
-      message: message || `Update ${filePathOnRepo}`,
-      content: encoded,
-      branch: GITHUB_BRANCH,
-      sha
-    });
-    return putRes.data;
-  } catch (err) {
-    // If file not found, create it
-    if (err.status === 404) {
-      const encoded = Buffer.from(contentStr, 'utf8').toString('base64');
-      const putRes = await octokit.repos.createOrUpdateFileContents({
-        owner, repo,
-        path: filePathOnRepo,
-        message: message || `Create ${filePathOnRepo}`,
-        content: encoded,
-        branch: GITHUB_BRANCH
-      });
-      return putRes.data;
-    }
-    throw err;
-  }
-}
-
-// Session helpers: create JWT signed cookie
-function createSessionToken(payload) {
-  return jwt.sign(payload, COOKIE_SECRET, { expiresIn: '30d' });
-}
-function verifySessionToken(token) {
-  try {
-    return jwt.verify(token, COOKIE_SECRET);
-  } catch (e) {
-    return null;
-  }
-}
-
-// Middleware: identify session user if cookie present
-app.use(async (req, res, next) => {
-  req.currentUser = null;
-  const token = req.cookies && req.cookies.session;
-  if (token) {
-    const data = verifySessionToken(token);
-    if (data && data.userId) {
-      const users = await readJson(PATH_USERS, []);
-      const u = users.find(x => x.id === data.userId);
-      if (u) {
-        req.currentUser = u;
-        req.isAdmin = ADMIN_IDS.includes(String(u.discordId)) || !!u.isAdmin || (ADMIN_IDS.includes(String(u.id)));
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    const files = [
+      [FILE_USERS, '[]'],
+      [FILE_SUBMISSIONS, '[]'],
+      [FILE_LEADERBOARD, '[]'],
+      [FILE_TERMINATED, '{}']
+    ];
+    for (const [p, initial] of files) {
+      try {
+        await fs.access(p);
+      } catch (e) {
+        await fs.writeFile(p, initial, 'utf8');
       }
     }
+  } catch (e) {
+    console.error('Failed to ensure data files', e);
   }
+}
+
+// Helpers to read/write JSON files
+async function readJson(filePath) {
+  try {
+    const txt = await fs.readFile(filePath, 'utf8');
+    return JSON.parse(txt || 'null') || (Array.isArray(JSON.parse(txt || '[]')) ? [] : {});
+  } catch (e) {
+    return Array.isArray(e) ? [] : [];
+  }
+}
+async function writeJson(filePath, obj) {
+  const str = JSON.stringify(obj, null, 2);
+  await fs.writeFile(filePath, str, 'utf8');
+}
+
+// Middleware to expose session user
+app.use((req, res, next) => {
+  res.locals.user = req.session.user || null;
   next();
 });
 
-// Serve static files (client)
-app.use(express.static(path.join(__dirname, 'public')));
+// API endpoints ---------------------------------------------------
 
-// Simple API to read JSONs (public reads)
-app.get('/api/users', async (req, res) => {
-  const users = await readJson(PATH_USERS, []);
-  // don't leak passwordHash
-  const safe = users.map(u => {
-    const copy = { ...u };
-    delete copy.passwordHash;
-    return copy;
-  });
+// GET /api/me - returns current logged-in session data (or null)
+app.get('/api/me', async (req, res) => {
+  if (!req.session.user) return res.json(null);
+  // fetch fresh user data from users.json
+  const users = await readJson(FILE_USERS);
+  const u = users.find(x => x.username && (x.username.toLowerCase() === (req.session.user.username || '').toLowerCase() || x.discordId === req.session.user.discordId));
+  if (!u) {
+    // user removed server-side: clear session
+    req.session.user = null;
+    return res.json(null);
+  }
+  // return safe user object
+  const safe = {
+    username: u.username,
+    tag: u.tag,
+    mto: !!u.mto,
+    isBanned: !!u.isBanned,
+    discordId: u.discordId || null,
+    displayName: u.displayName || null,
+    avatar: u.avatar || null
+  };
   res.json(safe);
 });
+
+// GET /api/users
+app.get('/api/users', async (req, res) => {
+  const users = await readJson(FILE_USERS);
+  res.json(users);
+});
+
+// GET /api/submissions
 app.get('/api/submissions', async (req, res) => {
-  const subs = await readJson(PATH_SUBMISSIONS, []);
+  const subs = await readJson(FILE_SUBMISSIONS);
   res.json(subs);
 });
+
+// GET /api/leaderboard
 app.get('/api/leaderboard', async (req, res) => {
-  const lb = await readJson(PATH_LEADERBOARD, []);
+  const lb = await readJson(FILE_LEADERBOARD);
   res.json(lb);
 });
+
+// GET /api/terminated
 app.get('/api/terminated', async (req, res) => {
-  const t = await readJson(PATH_TERMINATED, {});
+  const t = await readJson(FILE_TERMINATED);
   res.json(t);
 });
 
-// Session info
-app.get('/api/session', async (req, res) => {
-  if (!req.currentUser) return res.json({ user: null });
-  const u = { ...req.currentUser };
-  delete u.passwordHash;
-  res.json({ user: u, isAdmin: req.isAdmin });
+// POST /api/signup - username & password (password is stored as SHA-256 hex)
+app.post('/api/signup', async (req, res) => {
+  const { username, passwordHash } = req.body;
+  if (!username || !passwordHash) return res.status(400).json({ error: 'username & passwordHash required' });
+
+  const users = await readJson(FILE_USERS);
+  if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
+    return res.status(409).json({ error: 'username taken' });
+  }
+  // generate tag
+  const taken = new Set(users.map(u => u.tag));
+  let tag = null;
+  for (let i = 1; i < 10000; i++) {
+    const t = String(i).padStart(4, '0');
+    if (!taken.has(t)) { tag = t; break; }
+  }
+  if (!tag) tag = String(Date.now()).slice(-4);
+
+  const newUser = {
+    username,
+    passwordHash,
+    tag,
+    createdAt: Date.now(),
+    isBanned: false,
+    mto: false
+  };
+  users.push(newUser);
+  await writeJson(FILE_USERS, users);
+  // set session
+  req.session.user = { username: newUser.username };
+  res.json({ ok: true, user: { username: newUser.username, tag: newUser.tag } });
 });
 
-// Discord OAuth: redirect
+// POST /api/login - username & passwordHash
+app.post('/api/login', async (req, res) => {
+  const { username, passwordHash } = req.body;
+  if (!username || !passwordHash) return res.status(400).json({ error: 'username & passwordHash required' });
+  const users = await readJson(FILE_USERS);
+  const u = users.find(x => x.username.toLowerCase() === username.toLowerCase());
+  if (!u) return res.status(401).json({ error: 'invalid' });
+  if (u.passwordHash !== passwordHash) return res.status(401).json({ error: 'invalid' });
+  if (u.isBanned) return res.status(403).json({ error: 'banned', reason: u.banReason || null });
+
+  req.session.user = { username: u.username, discordId: u.discordId || null };
+  res.json({ ok: true, user: { username: u.username, tag: u.tag } });
+});
+
+// POST /api/submissions - create a submission (must be logged in)
+app.post('/api/submissions', async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ error: 'not logged in' });
+  const { name, creator, youtube } = req.body;
+  if (!name || !creator) return res.status(400).json({ error: 'name & creator required' });
+
+  const subs = await readJson(FILE_SUBMISSIONS);
+  subs.push({
+    id: Date.now() + '-' + Math.floor(Math.random() * 1000),
+    name,
+    creator,
+    youtube: youtube || '',
+    submittedBy: req.session.user.username || 'Unknown',
+    submittedAt: Date.now()
+  });
+  await writeJson(FILE_SUBMISSIONS, subs);
+  res.json({ ok: true });
+});
+
+// POST /api/approve - approve a submission (admin only)
+// payload: { submissionId, rank }
+app.post('/api/approve', async (req, res) => {
+  const actor = req.session.user;
+  if (!actor) return res.status(401).json({ error: 'not logged in' });
+
+  // allow if actor is Discord admin ID or their discordId stored with user matches admin set
+  const users = await readJson(FILE_USERS);
+  const u = users.find(x => x.username === actor.username);
+  const discordId = u && u.discordId ? u.discordId : (actor.discordId || null);
+  if (!discordId || !ADMIN_DISCORD_IDS.has(String(discordId))) {
+    return res.status(403).json({ error: 'forbidden' });
+  }
+
+  const { submissionId, rank } = req.body;
+  if (!submissionId || !rank) return res.status(400).json({ error: 'submissionId & rank required' });
+
+  const subs = await readJson(FILE_SUBMISSIONS);
+  const idx = subs.findIndex(s => s.id === submissionId);
+  if (idx === -1) return res.status(404).json({ error: 'submission not found' });
+
+  const entry = subs[idx];
+
+  let leaderboard = await readJson(FILE_LEADERBOARD);
+  // bump entries at >= rank
+  leaderboard.forEach(en => {
+    if (Number(en.rank) >= Number(rank)) en.rank = Number(en.rank) + 1;
+  });
+  leaderboard.push({
+    id: 'lb-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+    name: entry.name,
+    creator: entry.creator,
+    youtube: entry.youtube,
+    submittedBy: entry.submittedBy,
+    rank: Number(rank)
+  });
+  leaderboard.sort((a, b) => Number(a.rank) - Number(b.rank));
+  await writeJson(FILE_LEADERBOARD, leaderboard);
+
+  // remove submission
+  subs.splice(idx, 1);
+  await writeJson(FILE_SUBMISSIONS, subs);
+
+  res.json({ ok: true });
+});
+
+// POST /api/remove-leaderboard (admin) payload: { id }
+app.post('/api/remove-leaderboard', async (req, res) => {
+  const actor = req.session.user;
+  if (!actor) return res.status(401).json({ error: 'not logged in' });
+  const users = await readJson(FILE_USERS);
+  const u = users.find(x => x.username === actor.username);
+  const discordId = u && u.discordId ? u.discordId : (actor.discordId || null);
+  if (!discordId || !ADMIN_DISCORD_IDS.has(String(discordId))) {
+    return res.status(403).json({ error: 'forbidden' });
+  }
+  const { id } = req.body;
+  if (!id) return res.status(400).json({ error: 'id required' });
+  let lb = await readJson(FILE_LEADERBOARD);
+  lb = lb.filter(e => e.id !== id);
+  await writeJson(FILE_LEADERBOARD, lb);
+  res.json({ ok: true });
+});
+
+// POST /api/users/rename (admin) payload: { oldName, newName }
+app.post('/api/users/rename', async (req, res) => {
+  const actor = req.session.user;
+  if (!actor) return res.status(401).json({ error: 'not logged in' });
+  const users = await readJson(FILE_USERS);
+  const me = users.find(x => x.username === actor.username);
+  const discordId = me && me.discordId ? me.discordId : (actor.discordId || null);
+  if (!discordId || !ADMIN_DISCORD_IDS.has(String(discordId))) return res.status(403).json({ error: 'forbidden' });
+
+  const { oldName, newName } = req.body;
+  if (!oldName || !newName) return res.status(400).json({ error: 'oldName & newName required' });
+
+  const target = users.find(x => x.username.toLowerCase() === oldName.toLowerCase());
+  if (!target) return res.status(404).json({ error: 'user not found' });
+  if (users.find(x => x.username.toLowerCase() === newName.toLowerCase())) return res.status(409).json({ error: 'new name taken' });
+
+  // rename
+  for (const uu of users) {
+    if (uu.username.toLowerCase() === oldName.toLowerCase()) uu.username = newName;
+  }
+  await writeJson(FILE_USERS, users);
+
+  // update submissions and leaderboard submittedBy fields
+  const subs = await readJson(FILE_SUBMISSIONS);
+  subs.forEach(s => {
+    if (s.submittedBy && s.submittedBy.toLowerCase() === oldName.toLowerCase()) s.submittedBy = newName;
+  });
+  await writeJson(FILE_SUBMISSIONS, subs);
+
+  let lb = await readJson(FILE_LEADERBOARD);
+  lb.forEach(e => {
+    if (e.submittedBy && e.submittedBy.toLowerCase() === oldName.toLowerCase()) e.submittedBy = newName;
+  });
+  await writeJson(FILE_LEADERBOARD, lb);
+
+  res.json({ ok: true });
+});
+
+// POST /api/users/remove (admin) payload: { username, reason }
+// Will delete user, remove their submissions and leaderboard entries and store termination reason
+app.post('/api/users/remove', async (req, res) => {
+  const actor = req.session.user;
+  if (!actor) return res.status(401).json({ error: 'not logged in' });
+  const users = await readJson(FILE_USERS);
+  const me = users.find(x => x.username === actor.username);
+  const discordId = me && me.discordId ? me.discordId : (actor.discordId || null);
+  if (!discordId || !ADMIN_DISCORD_IDS.has(String(discordId))) return res.status(403).json({ error: 'forbidden' });
+
+  const { username, reason } = req.body;
+  if (!username) return res.status(400).json({ error: 'username required' });
+
+  let usersArr = users.filter(u => u.username.toLowerCase() !== username.toLowerCase());
+  await writeJson(FILE_USERS, usersArr);
+
+  // remove submissions
+  let subs = await readJson(FILE_SUBMISSIONS);
+  subs = subs.filter(s => !(s.submittedBy && s.submittedBy.toLowerCase() === username.toLowerCase()));
+  await writeJson(FILE_SUBMISSIONS, subs);
+
+  // remove leaderboard entries
+  let lb = await readJson(FILE_LEADERBOARD);
+  lb = lb.filter(e => !(e.submittedBy && e.submittedBy.toLowerCase() === username.toLowerCase()));
+  await writeJson(FILE_LEADERBOARD, lb);
+
+  // update terminated.json
+  const t = await readJson(FILE_TERMINATED);
+  t[username] = { reason: reason || 'No reason provided', timestamp: Date.now() };
+  await writeJson(FILE_TERMINATED, t);
+
+  res.json({ ok: true });
+});
+
+// POST /api/users/ban (admin) payload: { username, reason }
+// Marks isBanned true in users.json and saves reason
+app.post('/api/users/ban', async (req, res) => {
+  const actor = req.session.user;
+  if (!actor) return res.status(401).json({ error: 'not logged in' });
+  const users = await readJson(FILE_USERS);
+  const me = users.find(x => x.username === actor.username);
+  const discordId = me && me.discordId ? me.discordId : (actor.discordId || null);
+  if (!discordId || !ADMIN_DISCORD_IDS.has(String(discordId))) return res.status(403).json({ error: 'forbidden' });
+
+  const { username, reason } = req.body;
+  if (!username) return res.status(400).json({ error: 'username required' });
+  const u = users.find(x => x.username.toLowerCase() === username.toLowerCase());
+  if (!u) return res.status(404).json({ error: 'user not found' });
+
+  u.isBanned = true;
+  u.banReason = reason || 'No reason provided';
+  await writeJson(FILE_USERS, users);
+
+  // also add to terminated.json
+  const t = await readJson(FILE_TERMINATED);
+  t[username] = { reason: u.banReason, timestamp: Date.now() };
+  await writeJson(FILE_TERMINATED, t);
+
+  res.json({ ok: true });
+});
+
+// Discord OAuth endpoints ----------------------------------------
+
+// GET /auth/discord -> redirect to Discord OAuth2 authorize (code)
 app.get('/auth/discord', (req, res) => {
-  const base = 'https://discord.com/api/oauth2/authorize';
-  const client_id = DISCORD_CLIENT_ID;
-  const redirect_uri = DISCORD_REDIRECT_URI;
-  const scope = 'identify';
-  const url = `${base}?client_id=${encodeURIComponent(client_id)}&redirect_uri=${encodeURIComponent(redirect_uri)}&response_type=code&scope=${encodeURIComponent(scope)}`;
-  return res.redirect(url);
+  const redirectUri = `${SERVER_BASE_URL}/auth/discord/callback`;
+  // scope identify
+  const scope = encodeURIComponent('identify');
+  // always request code response_type=code
+  const url = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}`;
+  res.redirect(url);
 });
 
-// Discord OAuth callback
+// GET /auth/discord/callback?code=...
+// Exchange code for token, fetch /users/@me, create/find user in users.json, set session
 app.get('/auth/discord/callback', async (req, res) => {
   const code = req.query.code;
-  if (!code) return res.status(400).send('Missing code');
+  if (!code) return res.status(400).send('Code missing');
 
-  if (!DISCORD_CLIENT_SECRET || !DISCORD_CLIENT_ID || !DISCORD_REDIRECT_URI) {
-    return res.status(500).send('Server not configured for Discord OAuth (set DISCORD_CLIENT_ID/SECRET/REDIRECT_URI)');
-  }
+  const redirectUri = `${SERVER_BASE_URL}/auth/discord/callback`;
+
+  // Exchange code for token
+  const params = new URLSearchParams();
+  params.append('client_id', String(CLIENT_ID));
+  params.append('client_secret', String(CLIENT_SECRET));
+  params.append('grant_type', 'authorization_code');
+  params.append('code', code);
+  params.append('redirect_uri', redirectUri);
 
   try {
-    // exchange code for token
-    const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
+    const tokenResp = await fetch(DISCORD_TOKEN_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: DISCORD_CLIENT_ID,
-        client_secret: DISCORD_CLIENT_SECRET,
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: DISCORD_REDIRECT_URI
-      })
+      body: params,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
-    const tokenJson = await tokenRes.json();
-    if (!tokenJson.access_token) {
-      console.error('discord token error', tokenJson);
-      return res.status(500).send('Discord token exchange failed');
+    if (!tokenResp.ok) {
+      const txt = await tokenResp.text();
+      console.error('Token error', tokenResp.status, txt);
+      return res.status(500).send('Token exchange failed');
     }
+    const tokenJson = await tokenResp.json();
+    const accessToken = tokenJson.access_token;
 
-    // get user info
-    const userRes = await fetch('https://discord.com/api/users/@me', {
-      headers: { Authorization: `Bearer ${tokenJson.access_token}` }
+    // fetch user
+    const meResp = await fetch(DISCORD_API_ME, {
+      headers: { Authorization: `Bearer ${accessToken}` }
     });
-    const discordUser = await userRes.json();
-    // discordUser fields: id, username, discriminator, avatar
+    if (!meResp.ok) {
+      const txt = await meResp.text();
+      console.error('Fetch me error', meResp.status, txt);
+      return res.status(500).send('Failed to fetch Discord user');
+    }
+    const meJson = await meResp.json();
 
-    // upsert into users.json
-    const users = await readJson(PATH_USERS, []);
-    let user = users.find(u => String(u.discordId) === String(discordUser.id));
-    if (!user) {
-      // create new user
-      user = {
-        id: uuidv4(),
-        discordId: String(discordUser.id),
-        username: `${discordUser.username}#${discordUser.discriminator}`,
-        avatar: discordUser.avatar || null,
+    // meJson contains: id, username, discriminator, avatar
+    // Create or update local user in users.json
+    const users = await readJson(FILE_USERS);
+    let found = users.find(u => u.discordId === meJson.id);
+    if (!found) {
+      // If there's a user with same username, don't override — create a new account (append displayName)
+      const tag = (() => {
+        const taken = new Set(users.map(u => u.tag));
+        for (let i = 1; i < 10000; i++) {
+          const t = String(i).padStart(4, '0');
+          if (!taken.has(t)) return t;
+        }
+        return String(Date.now()).slice(-4);
+      })();
+      const displayName = `${meJson.username}#${meJson.discriminator}`;
+      found = {
+        username: `${meJson.username}`, // allow name collisions — unique key is discordId
+        tag,
+        discordId: meJson.id,
+        displayName,
+        avatar: meJson.avatar || null,
+        passwordHash: null,
         createdAt: Date.now(),
         isBanned: false,
-        banReason: null,
-        mto: false,
-        isAdmin: ADMIN_IDS.includes(String(discordUser.id))
+        mto: false
       };
-      users.push(user);
-      await writeJsonAtomic(PATH_USERS, users);
-      if (octokit && GITHUB_REPO) {
-        // optionally commit updated users.json
-        try {
-          await commitToGitHub('/users.json', JSON.stringify(users, null, 2), `Add/update user ${user.username}`);
-        } catch (e) {
-          console.warn('GitHub commit failed (users.json)', e.message);
-        }
-      }
+      users.push(found);
     } else {
-      // update username/avatar if changed
-      let changed = false;
-      const newName = `${discordUser.username}#${discordUser.discriminator}`;
-      if (user.username !== newName) { user.username = newName; changed = true; }
-      if (user.avatar !== discordUser.avatar) { user.avatar = discordUser.avatar; changed = true; }
-      if (changed) {
-        await writeJsonAtomic(PATH_USERS, users);
-      }
+      // update avatar/displayName if changed
+      found.avatar = meJson.avatar || found.avatar;
+      found.displayName = `${meJson.username}#${meJson.discriminator}` || found.displayName;
     }
+    await writeJson(FILE_USERS, users);
 
-    // If user is banned, show special page or redirect with message
-    if (user.isBanned) {
-      // Set a short session token so client can show termination screen if needed (or simply redirect to home).
-      // We'll not set a logged-in session — instead redirect to home; client will check /api/terminated.
-      return res.redirect('/?terminated=1');
-    }
+    // Set session
+    req.session.user = {
+      username: found.username,
+      discordId: found.discordId,
+      displayName: found.displayName,
+      avatar: found.avatar
+    };
 
-    // create session cookie
-    const token = createSessionToken({ userId: user.id });
-    res.cookie('session', token, { httpOnly: true, sameSite: 'lax', maxAge: 1000 * 60 * 60 * 24 * 30 });
-    return res.redirect('/');
+    // Redirect back to the public site (index)
+    // If you host public files at /public/index.html, redirect accordingly.
+    const redirectBack = `${SERVER_BASE_URL}/public/index.html`;
+    return res.redirect(redirectBack);
   } catch (e) {
     console.error('OAuth callback error', e);
-    return res.status(500).send('OAuth error');
+    return res.status(500).send('OAuth callback failed');
   }
 });
 
-// Logout
-app.get('/auth/logout', (req, res) => {
-  res.clearCookie('session');
-  res.redirect('/');
+// POST /api/logout
+app.post('/api/logout', (req, res) => {
+  req.session.user = null;
+  req.session.destroy && req.session.destroy(() => {});
+  res.json({ ok: true });
 });
 
-/**
- * POST /api/submissions
- * body: { name, creator, youtube }
- * Requires logged in user via cookie
- */
-app.post('/api/submissions', async (req, res) => {
+// Administrative endpoints to directly read/write files (for convenience):
+// GET /admin/read/:file  (allowed only for local requests) - not recommended, but included
+app.get('/admin/read/:file', async (req, res) => {
+  const allowed = ['users.json', 'submissions.json', 'leaderboard.json', 'terminated.json'];
+  if (!allowed.includes(req.params.file)) return res.status(404).send('Not found');
+  const fp = path.join(DATA_DIR, req.params.file);
   try {
-    if (!req.currentUser) return res.status(401).json({ error: 'Not authenticated' });
-    // check ban
-    if (req.currentUser.isBanned) return res.status(403).json({ error: 'Account banned' });
-
-    const { name, creator, youtube } = req.body || {};
-    if (!name || !creator) return res.status(400).json({ error: 'Missing fields' });
-    // Basic validation for youtube link optional
-    const item = {
-      id: uuidv4(),
-      name: String(name).slice(0, 250),
-      creator: String(creator).slice(0, 250),
-      youtube: youtube ? String(youtube).slice(0, 500) : '',
-      submittedBy: req.currentUser.username || req.currentUser.discordId,
-      submittedAt: Date.now()
-    };
-    const subs = await readJson(PATH_SUBMISSIONS, []);
-    subs.push(item);
-    await writeJsonAtomic(PATH_SUBMISSIONS, subs);
-
-    res.json({ ok: true, submission: item, persisted: !!(octokit && GITHUB_REPO) });
+    const js = await readJson(fp);
+    return res.json(js);
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'server error' });
+    return res.status(500).json({ error: 'read failed' });
   }
 });
 
-/**
- * Admin middleware
- */
-async function requireAdmin(req, res, next) {
-  if (!req.currentUser) return res.status(401).json({ error: 'Not authenticated' });
-  // admin if their discord id present in ADMIN_IDS env or user.isAdmin true
-  const isAdmin = ADMIN_IDS.includes(String(req.currentUser.discordId)) || !!req.currentUser.isAdmin;
-  if (!isAdmin) return res.status(403).json({ error: 'Admin access required' });
-  next();
-}
+// Serve static site under /public
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
-/**
- * Admin: approve submission => move to leaderboard with given rank
- * body: { submissionId, rank }
- */
-app.post('/api/admin/approve', requireAdmin, async (req, res) => {
-  try {
-    const { submissionId, rank } = req.body || {};
-    if (!submissionId || !rank) return res.status(400).json({ error: 'Missing submissionId or rank' });
-    const subs = await readJson(PATH_SUBMISSIONS, []);
-    const idx = subs.findIndex(s => s.id === submissionId);
-    if (idx === -1) return res.status(404).json({ error: 'Submission not found' });
-    const item = subs[idx];
-
-    const lb = await readJson(PATH_LEADERBOARD, []);
-    // bump ranks >= rank
-    lb.forEach(e => {
-      if (Number(e.rank) >= Number(rank)) e.rank = Number(e.rank) + 1;
-    });
-    const newEntry = {
-      id: uuidv4(),
-      name: item.name,
-      creator: item.creator,
-      youtube: item.youtube,
-      submittedBy: item.submittedBy,
-      rank: Number(rank),
-      addedAt: Date.now()
-    };
-    lb.push(newEntry);
-    lb.sort((a, b) => Number(a.rank) - Number(b.rank));
-
-    // remove from submissions
-    subs.splice(idx, 1);
-
-    await writeJsonAtomic(PATH_LEADERBOARD, lb);
-    await writeJsonAtomic(PATH_SUBMISSIONS, subs);
-
-    // optionally commit to GitHub
-    if (octokit && GITHUB_REPO) {
-      try {
-        await commitToGitHub('/leaderboard.json', JSON.stringify(lb, null, 2), `Admin approve: add ${newEntry.name}`);
-        await commitToGitHub('/submissions.json', JSON.stringify(subs, null, 2), `Admin approve: remove submission ${submissionId}`);
-      } catch (e) {
-        console.warn('GitHub commit failed (approve)', e.message);
-      }
-    }
-
-    res.json({ ok: true, added: newEntry });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'server error' });
-  }
+// Root redirect to public/index.html for convenience
+app.get('/', (req, res) => {
+  res.redirect('/public/index.html');
 });
 
-/**
- * Admin decline: remove submission
- * body: { submissionId }
- */
-app.post('/api/admin/decline', requireAdmin, async (req, res) => {
-  try {
-    const { submissionId } = req.body || {};
-    if (!submissionId) return res.status(400).json({ error: 'Missing submissionId' });
-    const subs = await readJson(PATH_SUBMISSIONS, []);
-    const idx = subs.findIndex(s => s.id === submissionId);
-    if (idx === -1) return res.status(404).json({ error: 'Submission not found' });
-    subs.splice(idx, 1);
-    await writeJsonAtomic(PATH_SUBMISSIONS, subs);
-    if (octokit && GITHUB_REPO) {
-      try {
-        await commitToGitHub('/submissions.json', JSON.stringify(subs, null, 2), `Admin decline submission ${submissionId}`);
-      } catch (e) { console.warn('GitHub commit failed (decline)', e.message); }
-    }
-    res.json({ ok: true });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'server error' });
-  }
-});
-
-/**
- * Admin delete user: remove user record and their submissions/leaderboard entries,
- * and add terminated note
- * body: { username, reason }
- */
-app.post('/api/admin/delete-user', requireAdmin, async (req, res) => {
-  try {
-    const { username, reason } = req.body || {};
-    if (!username || !reason) return res.status(400).json({ error: 'Missing fields' });
-
-    const users = await readJson(PATH_USERS, []);
-    const userIndex = users.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
-    if (userIndex === -1) return res.status(404).json({ error: 'User not found' });
-    const removedUser = users.splice(userIndex, 1)[0];
-
-    let subs = await readJson(PATH_SUBMISSIONS, []);
-    subs = subs.filter(s => !(s.submittedBy && s.submittedBy.toLowerCase() === removedUser.username.toLowerCase()));
-
-    let lb = await readJson(PATH_LEADERBOARD, []);
-    lb = lb.filter(e => !(e.submittedBy && e.submittedBy.toLowerCase() === removedUser.username.toLowerCase()));
-
-    const terminated = await readJson(PATH_TERMINATED, {});
-    terminated[removedUser.username] = { reason, timestamp: Date.now() };
-
-    await writeJsonAtomic(PATH_USERS, users);
-    await writeJsonAtomic(PATH_SUBMISSIONS, subs);
-    await writeJsonAtomic(PATH_LEADERBOARD, lb);
-    await writeJsonAtomic(PATH_TERMINATED, terminated);
-
-    if (octokit && GITHUB_REPO) {
-      try {
-        await commitToGitHub('/users.json', JSON.stringify(users, null, 2), `Admin remove user ${removedUser.username}`);
-        await commitToGitHub('/submissions.json', JSON.stringify(subs, null, 2), `Admin remove submissions of ${removedUser.username}`);
-        await commitToGitHub('/leaderboard.json', JSON.stringify(lb, null, 2), `Admin remove leaderboard entries of ${removedUser.username}`);
-        await commitToGitHub('/terminated.json', JSON.stringify(terminated, null, 2), `Admin terminated ${removedUser.username}`);
-      } catch (e) {
-        console.warn('GitHub commit failed (delete-user)', e.message);
-      }
-    }
-
-    res.json({ ok: true });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'server error' });
-  }
-});
-
-/**
- * Admin: add user (create account)
- * body: { username, mto (bool) }
- */
-app.post('/api/admin/add-user', requireAdmin, async (req, res) => {
-  try {
-    const { username, mto } = req.body || {};
-    if (!username) return res.status(400).json({ error: 'Missing username' });
-    const users = await readJson(PATH_USERS, []);
-    if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
-      return res.status(400).json({ error: 'Username exists' });
-    }
-    const newUser = {
-      id: uuidv4(),
-      discordId: null,
-      username: username,
-      avatar: null,
-      createdAt: Date.now(),
-      isBanned: false,
-      banReason: null,
-      mto: !!mto,
-      isAdmin: false
-    };
-    users.push(newUser);
-    await writeJsonAtomic(PATH_USERS, users);
-    if (octokit && GITHUB_REPO) {
-      try {
-        await commitToGitHub('/users.json', JSON.stringify(users, null, 2), `Admin add user ${username}`);
-      } catch (e) { console.warn('GitHub commit failed (add-user)', e.message); }
-    }
-    res.json({ ok: true, user: newUser });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'server error' });
-  }
-});
-
-// Fallback for SPA: serve index.html
-app.get('*', (req, res) => {
-  // if request is for API, return 404
-  if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) return res.status(404).json({ error: 'Not found' });
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Discord OAuth client id: ${DISCORD_CLIENT_ID}`);
-  if (!DISCORD_CLIENT_SECRET) console.warn('DISCORD_CLIENT_SECRET not set — OAuth will fail.');
-  if (!DISCORD_REDIRECT_URI) console.warn('DISCORD_REDIRECT_URI not set — set to your server callback URL.');
-  if (!COOKIE_SECRET) console.warn('You should set COOKIE_SECRET in env.');
+// ensure files and start
+ensureFiles().then(() => {
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+    console.log(`SERVER_BASE_URL = ${SERVER_BASE_URL}`);
+  });
 });
