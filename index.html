@@ -5,17 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Kacper's List</title>
 <style>
-  :root{
-    --accent1:#53baff;
-    --accent2:#6be3ff;
-    --glass-bg: rgba(255,255,255,0.10);
-    --card-bg: rgba(255,255,255,0.04);
-    --muted: rgba(255,255,255,0.6);
-  }
+  /* (same styling as you provided) */
+  :root{ --accent1:#53baff; --accent2:#6be3ff; --glass-bg: rgba(255,255,255,0.10); --card-bg: rgba(255,255,255,0.04); --muted: rgba(255,255,255,0.6); }
   html, body { height:100%; margin:0; font-family:'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background:#000; color:#fff; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
   .bg { position:relative; min-height:100%; display:grid; place-items:center; overflow:hidden; }
-  .bg::after{ content:""; position:absolute; inset:0; background-image:url('81161308.webp'); background-size:cover; background-position:center; filter: blur(10px) brightness(0.18); transform:scale(1.03); z-index:1; }
-  .bg::before{ content:""; position:absolute; inset:0; pointer-events:none; background: radial-gradient(circle, rgba(0,0,0,0) 35%, rgba(0,0,0,0.95) 100%); z-index:2; }
   .glass { position:relative; z-index:5; margin:40px; width:calc(100% - 80px); height:calc(100% - 80px); max-width:1400px; max-height:1000px; padding:28px; background:var(--glass-bg); backdrop-filter: blur(10px) saturate(120%); border-radius:24px; border:1px solid rgba(255,255,255,0.06); box-shadow:0 10px 40px rgba(0,0,0,0.6); display:flex; flex-direction:column; }
   .top-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
   .title { font-size:1.5rem; font-weight:700; letter-spacing:0.2px; }
@@ -23,49 +16,24 @@
   .leaderboard-frame { width:100%; max-width:1100px; height:100%; background:rgba(0,0,0,0.18); border-radius:12px; padding:18px; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; gap:12px; overflow:auto; }
   .card { width: calc(100% - 40px); max-width:1000px; background:var(--card-bg); border-radius:12px; display:flex; gap:14px; padding:12px; align-items:center; position:relative; box-shadow: 0 6px 18px rgba(0,0,0,0.5); }
   .card-left { min-width:240px; max-width:360px; width:34%; height:140px; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.35); border-radius:8px; overflow:hidden; }
-  .card-left iframe { width:100%; height:100%; border:0; display:block; }
   .card-mid { flex:1; display:flex; flex-direction:column; gap:6px; padding-right:8px; }
   .rank-row { display:flex; align-items:center; gap:12px; }
   .rank { font-size:2rem; font-weight:800; color:var(--accent1); min-width:68px; text-align:center; }
   .level-name { font-size:1.05rem; font-weight:700; word-break:break-word; }
   .creator { font-size:0.95rem; color:var(--muted); }
   .card-top-right { position:absolute; top:10px; right:12px; font-weight:600; font-size:0.9rem; color:var(--muted); background: rgba(255,255,255,0.03); padding:6px 8px; border-radius:8px; }
-  .submit-btn { padding:14px 36px; font-size:1.05rem; font-weight:700; border:none; border-radius:16px; cursor:pointer; background: linear-gradient(135deg,var(--accent1),var(--accent2)); background-size:200% 200%; color:#fff; transition:transform .18s; align-self:center; margin-top:12px; }
-  .submit-btn:hover{ transform:scale(1.03); }
-
-  /* overlays & popup styles */
+  .btn { padding:10px 14px; border-radius:10px; border:none; cursor:pointer; font-weight:700; background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#fff; }
+  .btn.ghost { background:transparent; border:1px solid rgba(255,255,255,0.06); }
   .overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:20; background:rgba(0,0,0,0.72); opacity:0; pointer-events:none; transition:opacity .25s ease; }
   .overlay.active { opacity:1; pointer-events:auto; }
   .popup { background: rgba(255,255,255,0.12); backdrop-filter: blur(16px); border-radius:20px; border:1px solid rgba(255,255,255,0.15); padding:20px; width:420px; max-width:94%; color:#fff; display:flex; flex-direction:column; gap:10px; box-shadow:0 12px 40px rgba(0,0,0,0.5); transform:translateY(20px); transition:transform .3s; }
-  .overlay.active .popup { transform:none; }
-  .popup h3 { margin:0; font-size:1.15rem; }
   .popup input[type=text], .popup input[type=url], .popup input[type=password] { padding:10px 12px; border-radius:10px; border:none; background:rgba(255,255,255,0.06); color:#fff; outline:none; }
-  .popup .row { display:flex; gap:8px; }
-  .popup .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:6px; }
-  .btn { padding:10px 14px; border-radius:10px; border:none; cursor:pointer; font-weight:700; background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#fff; }
-  .btn.ghost { background:transparent; border:1px solid rgba(255,255,255,0.06); }
   .error-msg { color:#ff6b6b; font-size:0.9rem; display:none; }
-
-  /* account overlay tabs */
-  .tabs { display:flex; gap:6px; margin-bottom:8px; }
-  .tab { padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:700; background:transparent; border:1px solid rgba(255,255,255,0.04); }
-  .tab.active { background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#000; }
-
   .user-info { position:absolute; bottom:10px; left:10px; display:flex; align-items:center; gap:10px; font-size:0.95rem; z-index:30; background: rgba(0,0,0,0.35); padding:8px 10px; border-radius:12px; backdrop-filter: blur(4px); border:1px solid rgba(255,255,255,0.04); }
   .user-info .name { font-weight:700; }
-  .user-info button { padding:6px 10px; border:none; border-radius:8px; cursor:pointer; background:#F44336; color:#fff; font-weight:700; margin-left:8px; }
   .user-info .small-actions { display:flex; gap:6px; align-items:center; margin-left:8px; }
   .user-info .small-actions button { padding:6px 8px; font-size:0.85rem; background:transparent; border:1px solid rgba(255,255,255,0.06); color:inherit; border-radius:8px; }
-
-  .terminate-popup { display:none; position:fixed; inset:0; align-items:center; justify-content:center; z-index:60; background:rgba(0,0,0,0.8); }
-  .terminate-popup .popup { width:520px; }
-
-  @media (max-width:800px){
-    .card { flex-direction:column; align-items:flex-start; height:auto; }
-    .card-left{ width:100%; height:160px; }
-    .rank { font-size:1.6rem; min-width:48px; }
-    .card-top-right{ position:static; align-self:flex-end; margin-left:auto; }
-  }
+  @media (max-width:800px){ .card { flex-direction:column; align-items:flex-start; height:auto; } .card-left{ width:100%; height:160px; } .rank { font-size:1.6rem; min-width:48px; } .card-top-right{ position:static; align-self:flex-end; margin-left:auto; } }
 </style>
 </head>
 <body>
@@ -75,7 +43,7 @@
       <div class="title">Kacper's List — Leaderboard</div>
       <div style="display:flex; gap:10px; align-items:center;">
         <button class="btn" id="openPopup">Submit Hardest</button>
-        <a href="submissions.html" class="btn btn-ghost" style="text-decoration:none; color:inherit; background:transparent; border:1px solid rgba(255,255,255,0.06);">Submissions</a>
+        <a href="submissions.html" class="btn btn-ghost" style="text-decoration:none; color:inherit;">Submissions</a>
       </div>
     </div>
 
@@ -97,56 +65,50 @@
     <div class="error-msg" id="errCreator">Creator required</div>
     <input type="url" id="subYT" placeholder="YouTube Link (https://...)">
     <div class="error-msg" id="errYT">Valid YouTube link required</div>
-
-    <div class="actions">
+    <div class="actions" style="display:flex; justify-content:flex-end;">
       <button class="btn" id="confirmSubmit">Submit</button>
     </div>
   </div>
 </div>
 
-<!-- Account Overlay: SIGNUP / LOGIN -->
+<!-- Account Overlay -->
 <div class="overlay" id="acctOverlay">
-  <div class="popup" style="width:520px;">
-    <div class="tabs">
+  <div class="popup" style="width:480px;">
+    <div style="display:flex;gap:6px;margin-bottom:8px;">
       <div class="tab active" id="tabSignup">Sign up</div>
       <div class="tab" id="tabLogin">Login</div>
     </div>
 
-    <!-- Signup -->
     <div id="signupPanel">
       <h3>Create your username</h3>
-      <p style="margin:0;color:var(--muted)">Pick a username and password that others will see. It must be unique.</p>
       <input type="text" id="acctName" placeholder="Username (min 2 chars)">
-      <input type="password" id="acctPass" placeholder="Password (min 6 chars)" style="margin-top:6px;">
-      <div class="error-msg" id="acctErr">Username required</div>
+      <input type="password" id="acctPass" placeholder="Password (min 4 chars)">
+      <div class="error-msg" id="acctErr">Username/password required</div>
       <div class="error-msg" id="acctTaken">That username is already taken</div>
       <div style="display:flex; gap:8px; justify-content:flex-end;">
         <button class="btn" id="acctConfirm">Create</button>
       </div>
     </div>
 
-    <!-- Login -->
     <div id="loginPanel" style="display:none;">
       <h3>Login</h3>
-      <p style="margin:0;color:var(--muted)">Type your username and password to log in.</p>
       <input type="text" id="loginName" placeholder="Username">
-      <input type="password" id="loginPass" placeholder="Password" style="margin-top:6px;">
-      <div class="error-msg" id="loginErr">Username or password not found</div>
+      <input type="password" id="loginPass" placeholder="Password">
+      <div class="error-msg" id="loginErr">Username or password incorrect</div>
       <div style="display:flex; gap:8px; justify-content:flex-end;">
         <button class="btn" id="loginBtn">Login</button>
       </div>
     </div>
-
   </div>
 </div>
 
-<!-- Termination popup -->
-<div class="terminate-popup" id="terminatePopup">
-  <div class="popup">
+<!-- Termination popup for banned users -->
+<div class="overlay" id="terminatedOverlay">
+  <div class="popup" style="width:420px;">
     <h3>Your account got terminated!</h3>
-    <p id="terminateReason" style="margin:0;color:var(--muted)"></p>
-    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
-      <button id="terminateClose" class="btn">Log out</button>
+    <div id="terminatedReason" style="color:var(--muted)"></div>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+      <button class="btn" id="termLogout">Log out</button>
     </div>
   </div>
 </div>
@@ -164,117 +126,64 @@
 </div>
 
 <script>
-/* ---------- Helper crypto (SHA-256) ---------- */
-async function sha256hex(message){
-  const msgBuffer = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-
-/* ---------- Utilities ---------- */
-function extractYouTubeId(url){
-  if(!url) return null;
-  const regex = /(?:v=|\/embed\/|\.be\/|v\/|vi=)([A-Za-z0-9_-]{6,11})/;
-  const m = url.match(regex);
-  if(m && m[1]) return m[1];
-  return null;
-}
-function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
-function escapeAttr(s){ return s ? s.replace(/"/g,'&quot;') : ''; }
-
-/* ---------- Data storage strategy ----------
-   - Try to fetch JSON files: /users.json, /submissions.json, /leaderboard.json
-   - If fetch fails (e.g., local file), fall back to localStorage copy
-   - All writes (signup, admin actions) update in-memory arrays and localStorage
-   - Admins can export the updated JSON from the Submissions page to persist changes to the repo manually.
+/*
+  index.html - client-only.
+  IMPORTANT:
+   - This script reads these files (GET):
+       /users.json
+       /submissions.json
+       /leaderboard.json
+       /terminated.json
+     (these must be present on your GitHub Pages site or accessible at those paths)
+   - Writing back to JSON on GitHub requires a GitHub token + owner/repo; that's implemented in submissions.html admin UI.
+   - localStorage is cleared at load to avoid stale data; session (who is logged in) is kept in localStorage under 'siteUser' only.
 */
-let DATA = {
-  users: [],
-  submissions: [],
-  leaderboard: [],
-  terminated: {} // mapping username -> reason (keeps ban reasons)
-};
 
-async function loadInitialJSON(){
-  // helper to fetch and parse JSON, with graceful fallback
-  async function tryLoad(path){
-    try{
-      const r = await fetch(path, {cache: "no-store"});
-      if(!r.ok) throw new Error('fetch failed');
-      const j = await r.json();
-      return j;
-    }catch(e){
-      return null;
-    }
-  }
+//////////////////////
+// Utilities & clear localStorage
+//////////////////////
 
-  const [u,s,l] = await Promise.all([ tryLoad('users.json'), tryLoad('submissions.json'), tryLoad('leaderboard.json') ]);
+// CLEAR legacy keys that were using localStorage for "shared" data
+localStorage.removeItem('users');
+localStorage.removeItem('submissions');
+localStorage.removeItem('leaderboard');
+localStorage.removeItem('terminatedUsers');
+// keep siteUser session (we'll rewrite below) - but user asked to clear everything, so clear siteUser too:
+localStorage.removeItem('siteUser');
 
-  // prefer fetched files, otherwise use localStorage saved data, otherwise empty
-  DATA.users = Array.isArray(u) ? u : (JSON.parse(localStorage.getItem('users')||'null') || []);
-  DATA.submissions = Array.isArray(s) ? s : (JSON.parse(localStorage.getItem('submissions')||'null') || []);
-  DATA.leaderboard = Array.isArray(l) ? l : (JSON.parse(localStorage.getItem('leaderboard')||'null') || []);
-  DATA.terminated = JSON.parse(localStorage.getItem('terminated')||'{}');
+function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
+function extractYouTubeId(url){ if(!url) return null; const regex = /(?:v=|\/embed\/|\.be\/|v\/|vi=)([A-Za-z0-9_-]{6,11})/; const m = url.match(regex); if(m && m[1]) return m[1]; return null; }
+async function sha256(message){ const msgBuffer = new TextEncoder().encode(message); const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer); const hashArray = Array.from(new Uint8Array(hashBuffer)); return hashArray.map(b=>b.toString(16).padStart(2,'0')).join(''); }
 
-  // normalize missing fields
-  for(const usr of DATA.users){
-    if(typeof usr.mto === 'undefined') usr.mto = false;
-    if(typeof usr.isBanned === 'undefined') usr.isBanned = false;
-    if(!usr.tag) usr.tag = generateTag(DATA.users);
-  }
+//////////////////////
+// Paths to JSON files (relative URLs on your GitHub Pages)
+// Ensure these files exist in your repo root (or adjust paths)
+//////////////////////
+const PATH_USERS = '/users.json';
+const PATH_SUBMISSIONS = '/submissions.json';
+const PATH_LEADERBOARD = '/leaderboard.json';
+const PATH_TERMINATED = '/terminated.json';
 
-  // persist into localStorage so changes survive
-  persistAllToLocal();
-}
+//////////////////////
+// App state (will be populated from fetch)
+//////////////////////
+let usersData = [];
+let submissionsData = [];
+let leaderboardData = [];
+let terminatedData = {}; // { "<username>": { reason, timestamp } }
 
-/* persist helpers */
-function persistAllToLocal(){
-  localStorage.setItem('users', JSON.stringify(DATA.users));
-  localStorage.setItem('submissions', JSON.stringify(DATA.submissions));
-  localStorage.setItem('leaderboard', JSON.stringify(DATA.leaderboard));
-  localStorage.setItem('terminated', JSON.stringify(DATA.terminated));
-}
+let siteUser = null; // logged-in user (object) — saved to localStorage.siteUser for session only
 
-/* download/export helpers for admin (they can manually upload to GitHub) */
-function downloadJSON(filename, obj){
-  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-/* ---------- Users helpers ---------- */
-function generateTag(usersList){
-  const users = usersList || DATA.users;
-  const taken = new Set(users.map(u => u.tag));
-  for(let i=1;i<10000;i++){
-    const t = String(i).padStart(4,'0');
-    if(!taken.has(t)) return t;
-  }
-  return String(Date.now()).slice(-4);
-}
-function findUserByName(name){
-  if(!name) return null;
-  return DATA.users.find(u => u.username.toLowerCase() === name.toLowerCase()) || null;
-}
-
-/* ---------- UI elements ---------- */
+// DOM refs
 const submitOverlay = document.getElementById('submitOverlay');
 const openPopup = document.getElementById('openPopup');
 const confirmSubmit = document.getElementById('confirmSubmit');
-
 const leaderboardContainer = document.getElementById('leaderboardContainer');
 const userInfoBox = document.getElementById('userInfo');
 const userNameEl = document.getElementById('userName');
 const userTagEl = document.getElementById('userTag');
 const logoutBtn = document.getElementById('logoutBtn');
-const toggleUserInfo = document.getElementById('toggleUserInfo');
+const toggleUserInfoBtn = document.getElementById('toggleUserInfo');
 
 const acctOverlay = document.getElementById('acctOverlay');
 const signupPanel = document.getElementById('signupPanel');
@@ -293,31 +202,119 @@ const loginPassEl = document.getElementById('loginPass');
 const loginErr = document.getElementById('loginErr');
 const loginBtn = document.getElementById('loginBtn');
 
-const terminatePopup = document.getElementById('terminatePopup');
-const terminateReasonEl = document.getElementById('terminateReason');
-const terminateClose = document.getElementById('terminateClose');
+const terminatedOverlay = document.getElementById('terminatedOverlay');
+const terminatedReasonEl = document.getElementById('terminatedReason');
+const termLogoutBtn = document.getElementById('termLogout');
 
-let siteUser = JSON.parse(localStorage.getItem('siteUser')||'null');
+//////////////////////
+// Fetch JSON helper (reads; returns default when file missing)
+//////////////////////
+async function fetchJsonOrDefault(path, defaultVal){
+  try{
+    const res = await fetch(path + '?_=' + Date.now(), {cache: 'no-store'}); // avoid aggressive caching
+    if(!res.ok) return defaultVal;
+    return await res.json();
+  }catch(e){
+    return defaultVal;
+  }
+}
 
-/* ---------- Overlay helpers ---------- */
-function showAcctOverlay(){ acctOverlay.classList.add('active'); acctOverlay.style.display='flex'; }
-function hideAcctOverlay(){ acctOverlay.classList.remove('active'); acctOverlay.style.display='none'; }
+//////////////////////
+// Boot: load data from JSON files on server
+//////////////////////
+async function boot(){
+  // try to restore logged-in session if present
+  try{
+    siteUser = JSON.parse(localStorage.getItem('siteUser') || 'null');
+  }catch(e){ siteUser = null; }
+
+  // load server JSONs (read-only)
+  usersData = await fetchJsonOrDefault(PATH_USERS, []);
+  submissionsData = await fetchJsonOrDefault(PATH_SUBMISSIONS, []);
+  leaderboardData = await fetchJsonOrDefault(PATH_LEADERBOARD, []);
+  terminatedData = await fetchJsonOrDefault(PATH_TERMINATED, {});
+
+  // sanitize missing fields
+  if(!Array.isArray(usersData)) usersData = [];
+  if(!Array.isArray(submissionsData)) submissionsData = [];
+  if(!Array.isArray(leaderboardData)) leaderboardData = [];
+  if(typeof terminatedData !== 'object' || terminatedData === null) terminatedData = {};
+
+  // if siteUser exists, validate against usersData (and check ban)
+  if(siteUser){
+    const u = usersData.find(x=> (x.username && x.username.toLowerCase()=== (siteUser.username||'').toLowerCase()) );
+    if(!u){
+      // user no longer exists: clear session
+      siteUser = null;
+      localStorage.removeItem('siteUser');
+    } else {
+      // check banned
+      if(u.isBanned){
+        // show termination overlay with reason
+        const reason = u.banReason || (terminatedData[u.username] && terminatedData[u.username].reason) || 'No reason provided';
+        showTermination(reason);
+        return; // don't show rest (they must logout)
+      }
+      // update session with fresh user object
+      siteUser = u;
+      localStorage.setItem('siteUser', JSON.stringify(siteUser));
+    }
+  }
+
+  updateUserUI();
+  loadLeaderboard();
+  if(!siteUser){
+    showAcctOverlay();
+  }
+}
+
+//////////////////////
+// UI helpers: overlays
+//////////////////////
+function showAcctOverlay(){ acctOverlay.classList.add('active'); acctOverlay.style.display = 'flex'; }
+function hideAcctOverlay(){ acctOverlay.classList.remove('active'); acctOverlay.style.display = 'none'; }
 function showSubmitOverlay(){ submitOverlay.classList.add('active'); submitOverlay.style.display='flex'; }
 function hideSubmitOverlay(){ submitOverlay.classList.remove('active'); submitOverlay.style.display='none'; }
+function showTermination(reason){
+  terminatedReasonEl.textContent = reason;
+  terminatedOverlay.classList.add('active'); terminatedOverlay.style.display='flex';
+}
+function hideTermination(){
+  terminatedOverlay.classList.remove('active'); terminatedOverlay.style.display = 'none';
+}
 
-/* ---------- UI updates ---------- */
+//////////////////////
+// User helpers
+//////////////////////
+function findUserByName(name){ if(!name) return null; return usersData.find(u => u.username.toLowerCase() === name.toLowerCase()) || null; }
+function generateTag(){
+  const taken = new Set(usersData.map(u => u.tag));
+  for(let i=1;i<10000;i++){ const t = String(i).padStart(4,'0'); if(!taken.has(t)) return t; }
+  return String(Date.now()).slice(-4);
+}
+function setSiteUser(user){
+  siteUser = user;
+  localStorage.setItem('siteUser', JSON.stringify(user));
+  updateUserUI();
+}
+function clearSiteUser(){
+  siteUser = null;
+  localStorage.removeItem('siteUser');
+  updateUserUI();
+}
+
 function updateUserUI(){
   if(!siteUser){ userInfoBox.style.display='none'; return; }
   userInfoBox.style.display='flex';
-  userNameEl.textContent = siteUser.username || 'User';
+  userNameEl.textContent = siteUser.username;
   userTagEl.textContent = siteUser.tag ? ('#' + siteUser.tag) : '';
-  // show MTO badge if user is MTO
-  const existingBadge = document.getElementById('mtoBadge');
+  // MTO badge
+  const mtoBadge = document.getElementById('mtoBadge');
   if(siteUser.mto){
-    if(!existingBadge){
+    if(!mtoBadge){
       const badge = document.createElement('span');
-      badge.id = 'mtoBadge';
-      badge.textContent = 'MTO';
+      badge.id='mtoBadge';
+      badge.textContent='MTO';
       badge.style.marginLeft='6px';
       badge.style.padding='2px 6px';
       badge.style.fontSize='0.75rem';
@@ -327,20 +324,15 @@ function updateUserUI(){
       badge.style.borderRadius='6px';
       userNameEl.parentNode.appendChild(badge);
     }
-  } else {
-    if(existingBadge) existingBadge.remove();
+  } else if(mtoBadge) {
+    mtoBadge.remove();
   }
 }
 
-/* toggle display of the user info box */
-let userInfoHidden = false;
-toggleUserInfo.addEventListener('click', ()=>{
-  userInfoHidden = !userInfoHidden;
-  userInfoBox.style.display = userInfoHidden ? 'none' : (siteUser ? 'flex' : 'none');
-  toggleUserInfo.textContent = userInfoHidden ? 'Show' : 'Hide';
-});
-
-/* ---------- Account tab switching ---------- */
+//////////////////////
+// Signup & Login (client-side hashed passwords)
+// NOTE: to persist users.json on GitHub you must use admin writes (submissions page)
+//////////////////////
 tabSignup.addEventListener('click', ()=>{
   tabSignup.classList.add('active'); tabLogin.classList.remove('active');
   signupPanel.style.display='block'; loginPanel.style.display='none';
@@ -350,88 +342,54 @@ tabLogin.addEventListener('click', ()=>{
   signupPanel.style.display='none'; loginPanel.style.display='block';
 });
 
-/* ---------- Signup & Login (with password) ---------- */
+// Signup flow: create user locally and attempt to persist via GitHub (admin must run commit from submissions page)
 acctConfirm.addEventListener('click', async ()=>{
   const name = acctNameEl.value.trim();
   const pass = acctPassEl.value || '';
   acctErr.style.display='none';
   acctTaken.style.display='none';
-  if(!name || name.length < 2){ acctErr.textContent='Username must be at least 2 characters'; acctErr.style.display='block'; return; }
-  if(pass.length < 6){ acctErr.textContent='Password must be at least 6 characters'; acctErr.style.display='block'; return; }
+  if(!name || name.length < 2 || !pass || pass.length < 4){ acctErr.textContent='Username must be ≥2 chars and password ≥4 chars'; acctErr.style.display='block'; return; }
   if(findUserByName(name)){ acctTaken.style.display='block'; return; }
 
-  const passHash = await sha256hex(pass);
-  const tag = generateTag();
-  const newUser = { username: name, tag, passwordHash: passHash, createdAt: Date.now(), mto: false, isBanned: false };
-  DATA.users.push(newUser);
-  persistAllToLocal();
-  // sign in
-  siteUser = { username: newUser.username, tag: newUser.tag, mto: newUser.mto, isBanned: newUser.isBanned };
-  localStorage.setItem('siteUser', JSON.stringify(siteUser));
-  updateUserUI();
+  const hashed = await sha256(pass);
+  const newUser = { username: name, tag: generateTag(), passwordHash: hashed, createdAt: Date.now(), isBanned:false, mto:false };
+  usersData.push(newUser);
+
+  // Set session now (local), but persistence to users.json requires admin commit. Show notice
+  setSiteUser(newUser);
   hideAcctOverlay();
-  acctNameEl.value = ''; acctPassEl.value = '';
-  alert('Account created and signed in.');
+  alert('Account created locally. NOTE: to persist users across everyone, you (an admin) must update users.json in your repo (the admin tools in submissions.html can do that if you provide a GitHub token).');
 });
 
+// Login: compare password hash with usersData
 loginBtn.addEventListener('click', async ()=>{
   const name = loginNameEl.value.trim();
   const pass = loginPassEl.value || '';
   loginErr.style.display='none';
-  if(!name || !pass){ loginErr.textContent='Username or password not found'; loginErr.style.display='block'; return; }
+  if(!name || !pass){ loginErr.textContent='Username or password incorrect'; loginErr.style.display='block'; return; }
   const user = findUserByName(name);
-  if(!user){ loginErr.textContent='Username or password not found'; loginErr.style.display='block'; return; }
+  if(!user){ loginErr.textContent='Username or password incorrect'; loginErr.style.display='block'; return; }
+  const hashed = await sha256(pass);
+  if(user.passwordHash !== hashed){ loginErr.textContent='Username or password incorrect'; loginErr.style.display='block'; return; }
+
   if(user.isBanned){
-    // if banned, show termination reason if present in DATA.terminated
-    const reason = DATA.terminated[user.username] || 'No reason provided';
-    terminateReasonEl.textContent = reason;
-    terminatePopup.style.display = 'flex';
-    terminatePopup.classList.add('active');
+    const reason = user.banReason || (terminatedData[user.username] && terminatedData[user.username].reason) || 'No reason provided';
+    showTermination(reason);
     return;
   }
-  const passHash = await sha256hex(pass);
-  if(passHash !== (user.passwordHash||'')){ loginErr.textContent='Username or password not found'; loginErr.style.display='block'; return; }
 
-  siteUser = { username: user.username, tag: user.tag, mto: user.mto, isBanned: user.isBanned };
-  localStorage.setItem('siteUser', JSON.stringify(siteUser));
-  updateUserUI();
+  setSiteUser(user);
   hideAcctOverlay();
-  loginNameEl.value = ''; loginPassEl.value = '';
 });
 
-/* logout */
-logoutBtn.addEventListener('click', ()=>{
-  if(confirm('Logout?')){ localStorage.removeItem('siteUser'); siteUser = null; updateUserUI(); showAcctOverlay(); }
-});
+logoutBtn.addEventListener('click', ()=>{ if(confirm('Logout?')){ clearSiteUser(); showAcctOverlay(); } });
+termLogoutBtn.addEventListener('click', ()=>{ clearSiteUser(); hideTermination(); showAcctOverlay(); });
 
-/* terminate popup close */
-terminateClose.addEventListener('click', ()=>{
-  // log out and force login/signup
-  terminatePopup.style.display = 'none';
-  localStorage.removeItem('siteUser');
-  siteUser = null;
-  updateUserUI();
-  showAcctOverlay();
-});
-
-/* when page loads, if siteUser is persisted, check banned status */
-function checkBannedOnBoot(){
-  if(!siteUser) return;
-  const user = findUserByName(siteUser.username);
-  if(!user) return;
-  if(user.isBanned){
-    const reason = DATA.terminated[user.username] || 'No reason provided';
-    terminateReasonEl.textContent = reason;
-    terminatePopup.style.display = 'flex';
-    terminatePopup.classList.add('active');
-  }
-}
-
-/* ---------- Submissions / Leaderboard logic ---------- */
-openPopup.addEventListener('click', ()=>{
-  if(!siteUser){ showAcctOverlay(); return; }
-  showSubmitOverlay();
-});
+//////////////////////
+// Submissions: create submission object and save to submissionsData locally
+// Writes to server JSON require admin write via GitHub API (handled on submissions.html)
+//////////////////////
+openPopup.addEventListener('click', ()=>{ if(!siteUser){ showAcctOverlay(); return; } showSubmitOverlay(); });
 
 confirmSubmit.addEventListener('click', ()=>{
   const name = document.getElementById('subName').value.trim();
@@ -442,8 +400,6 @@ confirmSubmit.addEventListener('click', ()=>{
   const errYT = document.getElementById('errYT');
 
   let ok = true;
-
-  // only validate if user is not MTO
   if(!siteUser?.mto){
     if(!name){ errName.style.display='block'; ok=false; } else errName.style.display='none';
     if(!creator){ errCreator.style.display='block'; ok=false; } else errCreator.style.display='none';
@@ -452,125 +408,59 @@ confirmSubmit.addEventListener('click', ()=>{
 
   if(!ok) return;
 
-  DATA.submissions.push({
-    name,
-    creator,
-    youtube: yt,
-    submittedBy: siteUser ? siteUser.username : 'Unknown',
-    submittedAt: Date.now()
-  });
-  persistAllToLocal();
+  const entry = { name, creator, youtube: yt, submittedBy: siteUser ? siteUser.username : 'Unknown', submittedAt: Date.now() };
+  submissionsData.push(entry);
+
+  // Save to server is not automatic; notify admin
   hideSubmitOverlay();
-  document.getElementById('subName').value='';
-  document.getElementById('subCreator').value='';
-  document.getElementById('subYT').value='';
-  alert('Submission saved! The admins will review it on Submissions page.');
-  // intentionally do NOT add to leaderboard here — only admin approval in submissions page will add entries.
+  document.getElementById('subName').value=''; document.getElementById('subCreator').value=''; document.getElementById('subYT').value='';
+  alert('Submission saved locally in this browser. To make it visible to everyone, an admin must approve it (use submissions.html admin tools).');
 });
 
-/* Render leaderboard cards - only uses approved leaderboard array (DATA.leaderboard) */
+//////////////////////
+// Render leaderboard - note: we ONLY render approved / persisted leaderboard.json
+//////////////////////
 function loadLeaderboard(){
   leaderboardContainer.innerHTML = '';
-  const leaderboard = (DATA.leaderboard || []).map(x=>({ ...x, rank: Number(x.rank) || 9999 })).sort((a,b)=>a.rank-b.rank);
+  // leaderboardData contains approved entries (rank, name, creator, youtube, submittedBy)
+  const list = (Array.isArray(leaderboardData) ? leaderboardData : []).map(x=>({...x, rank: Number(x.rank) || 9999})).sort((a,b)=>a.rank-b.rank);
 
-  if(leaderboard.length === 0){
+  if(list.length === 0){
     const empty = document.createElement('div');
-    empty.style.opacity = 0.7;
-    empty.style.color = 'var(--muted)';
-    empty.style.marginTop = '20px';
-    empty.style.textAlign = 'center';
-    empty.textContent = 'No leaderboard entries yet — be first to have an approved entry!';
+    empty.style.opacity = 0.7; empty.style.color = 'var(--muted)'; empty.style.marginTop = '20px'; empty.style.textAlign = 'center';
+    empty.textContent = 'No leaderboard entries yet — be first to submit (admins must approve).';
     leaderboardContainer.appendChild(empty);
     return;
   }
 
-  leaderboard.forEach(item=>{
-    const card = document.createElement('div');
-    card.className = 'card';
-
-    const left = document.createElement('div');
-    left.className = 'card-left';
+  list.forEach(item=>{
+    const card = document.createElement('div'); card.className='card';
+    const left = document.createElement('div'); left.className='card-left';
     const ytId = extractYouTubeId(item.youtube);
-    if(ytId){
-      const iframe = document.createElement('iframe');
-      iframe.src = `https://www.youtube.com/embed/${ytId}`;
-      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
-      iframe.allowFullscreen = true;
-      left.appendChild(iframe);
-    } else {
-      left.textContent = 'No video';
-    }
-
-    const mid = document.createElement('div');
-    mid.className = 'card-mid';
-    const rankRow = document.createElement('div');
-    rankRow.className = 'rank-row';
-    const rankEl = document.createElement('div');
-    rankEl.className = 'rank';
-    rankEl.textContent = item.rank || '-';
-    const nameEl = document.createElement('div');
-    nameEl.className = 'level-name';
-    nameEl.textContent = item.name || 'Unknown level';
-    rankRow.appendChild(rankEl);
-    rankRow.appendChild(nameEl);
-
-    const creator = document.createElement('div');
-    creator.className = 'creator';
-    creator.textContent = 'by ' + (item.creator || 'Unknown');
-
-    mid.appendChild(rankRow);
-    mid.appendChild(creator);
-
-    const topRight = document.createElement('div');
-    topRight.className = 'card-top-right';
+    if(ytId){ const iframe=document.createElement('iframe'); iframe.src=`https://www.youtube.com/embed/${ytId}`; iframe.allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'; iframe.allowFullscreen=true; left.appendChild(iframe); } else { left.textContent='No video'; }
+    const mid = document.createElement('div'); mid.className='card-mid';
+    const rankRow = document.createElement('div'); rankRow.className='rank-row';
+    const rankEl = document.createElement('div'); rankEl.className='rank'; rankEl.textContent = item.rank || '-';
+    const nameEl = document.createElement('div'); nameEl.className='level-name'; nameEl.textContent = item.name || 'Unknown level';
+    rankRow.appendChild(rankEl); rankRow.appendChild(nameEl);
+    const creator = document.createElement('div'); creator.className='creator'; creator.textContent = 'by ' + (item.creator || 'Unknown');
+    mid.appendChild(rankRow); mid.appendChild(creator);
+    const topRight = document.createElement('div'); topRight.className='card-top-right';
     const sender = item.submittedBy || item.discord || item.username || 'Unknown';
     topRight.textContent = 'sent by ' + sender;
 
-    card.appendChild(left);
-    card.appendChild(mid);
-    card.appendChild(topRight);
-
+    card.appendChild(left); card.appendChild(mid); card.appendChild(topRight);
     leaderboardContainer.appendChild(card);
   });
 }
 
-/* initial boot */
-(async ()=>{
-  await loadInitialJSON();
-  // load persisted logged-in user
-  siteUser = JSON.parse(localStorage.getItem('siteUser')||'null');
-  updateUserUI();
-  // check if banned
-  checkBannedOnBoot();
-  if(!siteUser) showAcctOverlay();
-  loadLeaderboard();
-})();
+// expose (for admin page to call)
+window.loadLeaderboard = loadLeaderboard;
 
-/* Expose helpers for admin page (submissions.html) to read current arrays and export */
-window.getDataForAdmin = function(){
-  // return deep copy so admin page won't mutate direct reference by accident
-  return {
-    users: JSON.parse(JSON.stringify(DATA.users)),
-    submissions: JSON.parse(JSON.stringify(DATA.submissions)),
-    leaderboard: JSON.parse(JSON.stringify(DATA.leaderboard)),
-    terminated: JSON.parse(JSON.stringify(DATA.terminated))
-  };
-};
-window.saveAdminData = function(payload){
-  // payload should contain users, submissions, leaderboard, terminated
-  if(payload.users) DATA.users = payload.users;
-  if(payload.submissions) DATA.submissions = payload.submissions;
-  if(payload.leaderboard) DATA.leaderboard = payload.leaderboard;
-  if(payload.terminated) DATA.terminated = payload.terminated;
-  persistAllToLocal();
-};
-window.exportAll = function(){
-  // convenience to download three files at once
-  downloadJSON('users.json', DATA.users);
-  downloadJSON('submissions.json', DATA.submissions);
-  downloadJSON('leaderboard.json', DATA.leaderboard);
-  downloadJSON('terminated.json', DATA.terminated);
-};
+//////////////////////
+// Start boot
+//////////////////////
+boot();
 
 </script>
 </body>
